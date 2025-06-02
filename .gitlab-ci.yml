@@ -1,0 +1,38 @@
+variables:
+  CATCH2_VERSION: 2.13.10
+
+.template: &template
+  before_script:
+    - echo "Installing required dependencies..."
+    - apt update
+    - apt install -y cmake git
+    - echo "Installing potential dependencies..."
+
+    - apt install -y python3-dev
+
+    - git clone -b v$CATCH2_VERSION https://github.com/catchorg/Catch2.git
+    - cd Catch2
+    - mkdir build
+    - cd build
+    - cmake -DBUILD_TESTING=OFF ..
+    - make install
+    - cd ../..
+  script:
+    - cmake -E make_directory build
+    - cd build
+    - cmake -DCMAKE_BUILD_TYPE=Debug -DBUILD_DOCS=OFF ..
+    - cmake --build .
+    - ctest
+
+
+# Note: You can use your own Docker images here that e.g. include relevant
+#       dependencies and development tools. We choose well-maintained images
+#       providing up-to-date compiler toolchains.
+
+build-and-test:gcc:
+  image: gcc:14
+  <<: *template
+
+build-and-test:clang:
+  image: silkeh/clang:18
+  <<: *template

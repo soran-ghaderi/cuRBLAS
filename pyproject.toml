@@ -1,0 +1,61 @@
+# This section describes the requirements of the build/installation
+# process itself. Being able to do this was the original reason to
+# introduce pyproject.toml
+[build-system]
+requires = [
+    "scikit-build-core",
+    "pybind11[global]",
+]
+build-backend = "scikit_build_core.build"
+
+# This section provides general project metadata that is used across
+# a variety of build tools. Notably, the version specified here is the
+# single source of truth for cuRBLAS's version
+[project]
+name = "cuRBLAS"
+version = "0.0.1"
+description = "Add short description here"
+readme = "README.md"
+maintainers = [
+    { name = "Soran Ghaderi", email = "your@email.com" },
+]
+requires-python = ">=3.8"
+license = { text = "MIT" }
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "License :: OSI Approved :: MIT License",
+]
+dependencies = []
+
+# The configuration for the scikit-build-core build process
+[tool.scikit-build]
+cmake.version = ">=3.9"
+build.verbose = true
+
+[tool.scikit-build.cmake.define]
+BUILD_PYTHON = "ON"
+BUILD_TESTING = "OFF"
+BUILD_DOCS = "OFF"
+
+# The following is the configuration for the pytest test suite
+[tool.pytest.ini_options]
+testpaths = ["tests/python"]
+
+# The next section configures building wheels in Continuous Integration
+# The cibuildwheel documentation covers the available options in detail:
+# https://cibuildwheel.readthedocs.io/en/stable/options/
+[tool.cibuildwheel]
+# The variables in this section allow you to customize the process how the wheels
+# for the Python packages are built. For a list of options, see this
+# page: https://cibuildwheel.readthedocs.io/en/stable/options/
+
+# Verbose output is helpful for understanding CI failures
+build-verbosity = 3
+
+# We restrict ourselves to recent Python versions
+skip = "pp* *p27-* cp35-* cp36-* cp37-* *musllinux*"
+
+# Testing commands for our wheels
+test-command = "pytest {package}/tests/python"
+test-requires = ["pytest"]

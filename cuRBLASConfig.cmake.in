@@ -1,0 +1,15 @@
+get_filename_component(
+  CURBLAS_CMAKE_DIR
+  ${CMAKE_CURRENT_LIST_FILE}
+  PATH
+)
+set(CMAKE_MODULE_PATH ${CURBLAS_CMAKE_DIR} ${CMAKE_MODULE_PATH})
+
+include(CMakeFindDependencyMacro)
+if(@CUDA_FOUND@)
+find_dependency(CUDA)
+endif()
+
+if(NOT TARGET cuRBLAS::cuRBLAS)
+  include("${CURBLAS_CMAKE_DIR}/cuRBLASTargets.cmake")
+endif()
