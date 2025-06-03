@@ -127,18 +127,18 @@ jobs:
       working-directory: ${{ github.workspace }}/build
       run: ctest
 
-    - name: collect coverage report
-      shell: bash
-      working-directory: ${{ github.workspace }}
-      run: |
-        lcov --directory ./build/src --capture --output-file coverage.info  --ignore-errors mismatch
+    # - name: collect coverage report
+    #   shell: bash
+    #   working-directory: ${{ github.workspace }}
+    #   run: |
+    #     lcov --directory ./build/src --capture --output-file coverage.info  --ignore-errors mismatch
 
-    - name: Upload C++ coverage to Codecov
-      uses: codecov/codecov-action@v5
-      with:
-        fail_ci_if_error: true
-        files: ${{github.workspace}}/coverage.info,coverage.xml
-        token: ${{ secrets.CODECOV_TOKEN }}
+    # - name: Upload C++ coverage to Codecov
+    #   uses: codecov/codecov-action@v5
+    #   with:
+    #     fail_ci_if_error: true
+    #     files: ${{github.workspace}}/coverage.info,coverage.xml
+    #     token: ${{ secrets.CODECOV_TOKEN }}
 
 
 
