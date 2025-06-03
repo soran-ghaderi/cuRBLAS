@@ -1,7 +1,7 @@
-cmake_minimum_required(VERSION 3.9)
+cmake_minimum_required(VERSION 3.18)
 
 # Set a name and a version number for your project:
-project(cuRBLAS VERSION 0.0.1 LANGUAGES CXX)
+project(cuRBLAS VERSION 0.0.1 LANGUAGES CXX CUDA)
 
 # Set CMake policies for this project
 
@@ -15,14 +15,22 @@ include(GNUInstallDirs)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Define CUDA standard
+set(CMAKE_CUDA_STANDARD 17)
+set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
+# CUDA specific settings
+set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
+set(CMAKE_CUDA_RESOLVE_DEVICE_SYMBOLS ON)
 
 # Compilation options
 option(BUILD_PYTHON "Enable building of Python bindings" OFF)
 option(BUILD_DOCS "Enable building of documentation" ON)
 
 # Find external dependencies
-find_package(CUDA)
+find_package(CUDAToolkit REQUIRED)
 
 # compile the library
 add_subdirectory(src)
