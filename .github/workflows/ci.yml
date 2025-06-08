@@ -12,7 +12,7 @@ on:
   # as well as upon manual triggers through the 'Actions' tab of the Github UI
   workflow_dispatch:
 env:
-  CATCH2_VERSION: 2.13.10
+  CATCH2_VERSION: 3.6.0
 
 jobs:
   build-and-test:
@@ -27,11 +27,12 @@ jobs:
 
     - name: Install CUDA Toolkit (Linux/Windows)
       if: runner.os != 'macOS'
-      uses: Jimver/cuda-toolkit@v0.2.25
+      uses: Jimver/cuda-toolkit
       id: cuda-toolkit
       with:
         cuda: '12.5.0'
         method: 'network'
+        use-github-cache: false
 
     - name: Verify CUDA installation
       if: runner.os != 'macOS'
@@ -44,7 +45,7 @@ jobs:
         cd Catch2
         mkdir build
         cd build
-        cmake -DBUILD_TESTING=OFF  ..
+        cmake -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release ..
         sudo cmake --build . --target install
 
     - name: Install Catch2 (Windows)  
@@ -54,8 +55,8 @@ jobs:
         cd Catch2
         mkdir build
         cd build
-        cmake -DBUILD_TESTING=OFF  ..
-        cmake --build . --target install
+        cmake -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release ..
+        cmake --build . --target install --config Release
 
     - name: make build directory
       run: cmake -E make_directory ${{ github.workspace }}/build
@@ -63,7 +64,7 @@ jobs:
     - name: configure cmake
       shell: bash
       working-directory: ${{ github.workspace }}/build
-      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=Debug -DBUILD_DOCS=OFF
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=Debug -DBUILD_DOCS=OFF -DBUILD_TESTING=ON
 
     - name: build
       shell: bash
@@ -86,11 +87,12 @@ jobs:
     - uses: actions/checkout@v4
 
     - name: Install CUDA Toolkit
-      uses: Jimver/cuda-toolkit@v0.2.25
+      uses: Jimver/cuda-toolkit@v0.2.28
       id: cuda-toolkit
       with:
         cuda: '12.5.0'
         method: 'network'
+        use-github-cache: false
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -112,11 +114,12 @@ jobs:
     - uses: actions/checkout@v4
 
     - name: Install CUDA Toolkit
-      uses: Jimver/cuda-toolkit@v0.2.25
+      uses: Jimver/cuda-toolkit@v0.2.28
       id: cuda-toolkit
       with:
         cuda: '12.5.0'
         method: 'network'
+        use-github-cache: false
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -134,7 +137,7 @@ jobs:
         cd Catch2
         mkdir build
         cd build
-        cmake -DBUILD_TESTING=OFF  ..
+        cmake -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release ..
         sudo cmake --build . --target install
 
     - name: Install Python package editable

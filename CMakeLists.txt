@@ -1,11 +1,32 @@
 cmake_minimum_required(VERSION 3.18)
 
 # Set a name and a version number for your project:
-project(cuRBLAS VERSION 0.0.1 LANGUAGES CXX CUDA)
+# Start with just CXX, add CUDA if available
+project(cuRBLAS VERSION 0.0.1 LANGUAGES CXX)
 
-# Set CUDA architectures - this fixes the CMAKE_CUDA_ARCHITECTURES error
-# Supporting common GPU architectures: Pascal, Volta, Turing, Ampere, Ada Lovelace
-set(CMAKE_CUDA_ARCHITECTURES "60;61;70;75;80;86;89;90" CACHE STRING "CUDA architectures")
+# Check if CUDA is available and enable it if found
+include(CheckLanguage)
+check_language(CUDA)
+if(CMAKE_CUDA_COMPILER)
+    enable_language(CUDA)
+    set(CUDA_FOUND TRUE)
+    message(STATUS "CUDA found and enabled")
+    
+    # Set CUDA architectures - this fixes the CMAKE_CUDA_ARCHITECTURES error
+    # Supporting common GPU architectures: Pascal, Volta, Turing, Ampere, Ada Lovelace
+    set(CMAKE_CUDA_ARCHITECTURES "60;61;70;75;80;86;89;90" CACHE STRING "CUDA architectures")
+    
+    # Define CUDA standard
+    set(CMAKE_CUDA_STANDARD 17)
+    set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+    
+    # CUDA specific settings
+    set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
+    set(CMAKE_CUDA_RESOLVE_DEVICE_SYMBOLS ON)
+else()
+    set(CUDA_FOUND FALSE)
+    message(WARNING "CUDA not found - building CPU-only version")
+endif()
 
 # Set CMake policies for this project
 
@@ -19,22 +40,16 @@ include(GNUInstallDirs)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Define CUDA standard
-set(CMAKE_CUDA_STANDARD 17)
-set(CMAKE_CUDA_STANDARD_REQUIRED ON)
-
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-
-# CUDA specific settings
-set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
-set(CMAKE_CUDA_RESOLVE_DEVICE_SYMBOLS ON)
 
 # Compilation options
 option(BUILD_PYTHON "Enable building of Python bindings" OFF)
 option(BUILD_DOCS "Enable building of documentation" ON)
 
 # Find external dependencies
-find_package(CUDAToolkit REQUIRED)
+if(CUDA_FOUND)
+    find_package(CUDAToolkit REQUIRED)
+endif()
 
 # compile the library
 add_subdirectory(src)
