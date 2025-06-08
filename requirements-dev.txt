@@ -2,3 +2,21 @@ pytest
 
 pytest-cov
 
+mkdocs
+
+mkdocs-material
+
+mkdocs-awesome-pages-plugin
+
+mike
+
+bump2version
+
+wheel
+
+twine
+
+toml
+
+pyyaml
+

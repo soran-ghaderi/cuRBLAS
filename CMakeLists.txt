@@ -3,6 +3,10 @@ cmake_minimum_required(VERSION 3.18)
 # Set a name and a version number for your project:
 project(cuRBLAS VERSION 0.0.1 LANGUAGES CXX CUDA)
 
+# Set CUDA architectures - this fixes the CMAKE_CUDA_ARCHITECTURES error
+# Supporting common GPU architectures: Pascal, Volta, Turing, Ampere, Ada Lovelace
+set(CMAKE_CUDA_ARCHITECTURES "60;61;70;75;80;86;89;90" CACHE STRING "CUDA architectures")
+
 # Set CMake policies for this project
 
 # We allow <Package>_ROOT (env) variables for locating dependencies
@@ -49,7 +53,7 @@ endif()
 
 if(BUILD_DOCS)
   # Add the documentation
-  add_subdirectory(doc)
+  add_subdirectory(docs)
 endif()
 if(BUILD_PYTHON)
   # Add Python bindings

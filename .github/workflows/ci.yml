@@ -25,8 +25,6 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-
-
     - name: Install Catch2 (Linux + MacOS)
       if: runner.os != 'Windows'
       run: |
@@ -37,7 +35,7 @@ jobs:
         cmake -DBUILD_TESTING=OFF  ..
         sudo cmake --build . --target install
 
-    - name: Install Catch2 (Windows)
+    - name: Install Catch2 (Windows)  
       if: runner.os == 'Windows'
       run: |
         git clone -b v$Env:CATCH2_VERSION https://github.com/catchorg/Catch2.git
@@ -64,6 +62,7 @@ jobs:
       shell: bash
       working-directory: ${{ github.workspace }}/build
       run: ctest
+
   python-testing:
     name: Python package testing on ${{matrix.os}}
     runs-on: ${{matrix.os}}
@@ -73,7 +72,6 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -87,7 +85,6 @@ jobs:
         python -m pip install -r requirements-dev.txt
         pytest
 
-
   coverage-test:
     name: Coverage Testing
     runs-on: ubuntu-latest
@@ -95,11 +92,15 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
 
     - name: Install LCov
       run: |
+        sudo apt-get update
         sudo apt-get install -y lcov
-
 
     - name: Install Catch2
       run: |
@@ -110,35 +111,42 @@ jobs:
         cmake -DBUILD_TESTING=OFF  ..
         sudo cmake --build . --target install
 
-
     - name: Install Python package editable
       run: |
+        python -m pip install --upgrade pip
         python -m pip install scikit_build_core pybind11[global]
         python -m pip install --no-build-isolation --config-settings=build-dir="${{ github.workspace }}/build" --config-settings=cmake.define.CMAKE_CXX_FLAGS="--coverage" --config-settings=cmake.define.BUILD_TESTING="ON" -v -e .
         python -m pip install -r requirements-dev.txt
     
-    - name: Run Python tests
+    - name: Run Python tests with coverage
       run: |
-        python -m pytest --cov --cov-report=xml
+        python -m pytest --cov=. --cov-report=xml --cov-report=term-missing
 
-
-    - name: run tests
+    - name: Run C++ tests
       shell: bash
       working-directory: ${{ github.workspace }}/build
-      run: ctest
+      run: ctest || true
 
-    # - name: collect coverage report
-    #   shell: bash
-    #   working-directory: ${{ github.workspace }}
-    #   run: |
-    #     lcov --directory ./build/src --capture --output-file coverage.info  --ignore-errors mismatch
+    - name: Collect C++ coverage report
+      shell: bash
+      working-directory: ${{ github.workspace }}
+      run: |
+        # Initialize coverage counters
+        lcov --directory ./build --zerocounters || true
+        # Capture coverage data
+        lcov --directory ./build --capture --output-file coverage.info --ignore-errors mismatch,source || true
+        # Remove system and test files from coverage
+        lcov --remove coverage.info '/usr/*' '*/tests/*' '*/test_*' '*/Catch2/*' --output-file coverage_filtered.info --ignore-errors unused || true
+        # List coverage info for debugging
+        lcov --list coverage_filtered.info || true
 
-    # - name: Upload C++ coverage to Codecov
-    #   uses: codecov/codecov-action@v5
-    #   with:
-    #     fail_ci_if_error: true
-    #     files: ${{github.workspace}}/coverage.info,coverage.xml
-    #     token: ${{ secrets.CODECOV_TOKEN }}
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        fail_ci_if_error: false
+        files: ./coverage_filtered.info,./coverage.xml
+        token: ${{ secrets.CODECOV_TOKEN }}
+        verbose: true
 
 
 

@@ -34,6 +34,68 @@ _skbuild
 *.out
 *.app
 
+# CMake build artifacts
+build/
+build_*/
+cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+Testing/
+Makefile
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+DartConfiguration.tcl
+_deps/
+.ninja_deps
+.ninja_log
+build.ninja
+*Targets.cmake
+*Config.cmake
+CMakeDoxyfile.in
+CMakeDoxygenDefaults.cmake
+
+# IDE files
+.vscode/
+.vs/
+*.swp
+*.swo
+*~
+
+# CLion/IntelliJ files (keep .idea in case it has project-specific settings)
+# .idea/
+# But ignore user-specific IDE files
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/dictionaries/
+.idea/vcs.xml
+.idea/jsLibraryMappings.xml
+.idea/datasources.xml
+.idea/dataSources.ids
+.idea/sqlDataSources.xml
+.idea/dynamic.xml
+.idea/uiDesigner.xml
+.idea/gradle.xml
+.idea/libraries/
+.idea/mongoSettings.xml
+.idea/shelf/
+.idea/usage.statistics.xml
+.idea/navEditor.xml
+.idea/assetWizardSettings.xml
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+*.orig
+*.rej
+*~
+.DS_Store
+Thumbs.db
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -44,7 +106,6 @@ __pycache__/
 
 # Distribution / packaging
 .Python
-build/
 develop-eggs/
 dist/
 downloads/
@@ -106,6 +167,9 @@ instance/
 
 # Sphinx documentation
 docs/_build/
+doc/_build/
+doc/html/
+doc/xml/
 
 # PyBuilder
 .pybuilder/
@@ -157,7 +221,7 @@ venv.bak/
 .ropeproject
 
 # mkdocs documentation
-/site
+/site/
 
 # mypy
 .mypy_cache/
@@ -172,3 +236,8 @@ dmypy.json
 
 # Cython debug symbols
 cython_debug/
+
+# Doxygen output
+doc/html/
+doc/xml/
+docs/api/doxygen/

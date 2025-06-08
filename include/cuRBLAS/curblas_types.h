@@ -172,4 +172,4 @@ typedef void (*curblasLogCallback_t)(int logLevel, const char* functionName, con
 }
 #endif
 
-#endif // CURBLAS_TYPES_H 
+#endif // CURBLAS_TYPES_H

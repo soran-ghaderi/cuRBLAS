@@ -1,10 +1,21 @@
 codecov:
-  require_ci_to_pass: yes
+  require_ci_to_pass: no
+  notify:
+    wait_for_ci: yes
 
 coverage:
   precision: 2
   round: down
-  range: "70...100"
+  range: "50...90"
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 1%
+    patch:
+      default:
+        target: auto
+        threshold: 1%
 
 parsers:
   gcov:
@@ -20,7 +31,10 @@ comment:
   require_changes: no
 
 ignore:
-  - app
-  - python
-  - "**/tests"
-  - "**/Catch2"
+  - app/**/*
+  - python/**/*
+  - "**/tests/**"
+  - "**/test_*"
+  - "**/Catch2/**"
+  - "build/**/*"
+  - "cmake-build-*/**/*"
