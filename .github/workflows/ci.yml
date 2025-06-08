@@ -11,6 +11,7 @@ on:
       - main
   # as well as upon manual triggers through the 'Actions' tab of the Github UI
   workflow_dispatch:
+
 env:
   CATCH2_VERSION: 3.6.0
 
@@ -27,7 +28,7 @@ jobs:
 
     - name: Install CUDA Toolkit (Linux/Windows)
       if: runner.os != 'macOS'
-      uses: Jimver/cuda-toolkit
+      uses: Jimver/cuda-toolkit@v0.2.16
       id: cuda-toolkit
       with:
         cuda: '12.5.0'
@@ -87,7 +88,7 @@ jobs:
     - uses: actions/checkout@v4
 
     - name: Install CUDA Toolkit
-      uses: Jimver/cuda-toolkit@v0.2.28
+      uses: Jimver/cuda-toolkit@v0.2.16
       id: cuda-toolkit
       with:
         cuda: '12.5.0'
@@ -114,7 +115,7 @@ jobs:
     - uses: actions/checkout@v4
 
     - name: Install CUDA Toolkit
-      uses: Jimver/cuda-toolkit@v0.2.28
+      uses: Jimver/cuda-toolkit@v0.2.16
       id: cuda-toolkit
       with:
         cuda: '12.5.0'
@@ -126,25 +127,44 @@ jobs:
       with:
         python-version: "3.11"
 
-    - name: Install LCov
+    - name: Install system dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y lcov
 
-    - name: Install Catch2
+    - name: Install Catch2 with proper configuration
       run: |
         git clone -b v$CATCH2_VERSION https://github.com/catchorg/Catch2.git
         cd Catch2
         mkdir build
         cd build
-        cmake -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release ..
+        cmake -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release -DCATCH_INSTALL_DOCS=OFF ..
         sudo cmake --build . --target install
 
-    - name: Install Python package editable
+    - name: Install Python dependencies
       run: |
         python -m pip install --upgrade pip
-        python -m pip install scikit_build_core pybind11[global]
-        python -m pip install --no-build-isolation --config-settings=build-dir="${{ github.workspace }}/build" --config-settings=cmake.define.CMAKE_CXX_FLAGS="--coverage" --config-settings=cmake.define.BUILD_TESTING="ON" -v -e .
+        python -m pip install scikit-build-core pybind11[global]
+
+    - name: Configure and build with coverage
+      run: |
+        mkdir -p ${{ github.workspace }}/build
+        cd ${{ github.workspace }}/build
+        cmake $GITHUB_WORKSPACE \
+          -DCMAKE_BUILD_TYPE=Debug \
+          -DBUILD_DOCS=OFF \
+          -DBUILD_TESTING=ON \
+          -DCMAKE_CXX_FLAGS="--coverage" \
+          -DCMAKE_C_FLAGS="--coverage"
+        cmake --build .
+
+    - name: Install Python package in development mode
+      run: |
+        python -m pip install --no-build-isolation \
+          --config-settings=build-dir="${{ github.workspace }}/build" \
+          --config-settings=cmake.define.CMAKE_CXX_FLAGS="--coverage" \
+          --config-settings=cmake.define.BUILD_TESTING="ON" \
+          -v -e .
         python -m pip install -r requirements-dev.txt
     
     - name: Run Python tests with coverage
@@ -154,7 +174,7 @@ jobs:
     - name: Run C++ tests
       shell: bash
       working-directory: ${{ github.workspace }}/build
-      run: ctest || true
+      run: ctest --output-on-failure || true
 
     - name: Collect C++ coverage report
       shell: bash
@@ -176,7 +196,3 @@ jobs:
         files: ./coverage_filtered.info,./coverage.xml
         token: ${{ secrets.CODECOV_TOKEN }}
         verbose: true
-
-
-
-
