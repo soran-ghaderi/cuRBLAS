@@ -1,4 +1,4 @@
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
 #include "cuRBLAS/cuRBLAS.hpp"
 #include "cuRBLAS/curblas.h"
 #include <cuda_runtime.h>

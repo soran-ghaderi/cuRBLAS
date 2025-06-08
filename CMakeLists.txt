@@ -61,8 +61,7 @@ add_subdirectory(app)
 # compile the tests
 include(CTest)
 if(BUILD_TESTING)
-  find_package(Catch2 REQUIRED)
-  include(Catch)
+  find_package(Catch2 3 REQUIRED)
   add_subdirectory(tests)
 endif()
 
