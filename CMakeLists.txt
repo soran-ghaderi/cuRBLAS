@@ -62,6 +62,27 @@ add_subdirectory(app)
 include(CTest)
 if(BUILD_TESTING)
   find_package(Catch2 3 REQUIRED)
+  
+  # Try to include Catch2 discovery functions if available
+  if(TARGET Catch2::Catch2WithMain)
+    # Look for the Catch2 CMake module in common locations
+    find_file(CATCH2_CMAKE_MODULE 
+      NAMES Catch2.cmake 
+      PATHS 
+        ${Catch2_DIR}
+        ${Catch2_DIR}/../../../lib/cmake/Catch2
+        /usr/local/lib/cmake/Catch2
+        /usr/lib/cmake/Catch2
+      NO_DEFAULT_PATH
+    )
+    
+    if(CATCH2_CMAKE_MODULE)
+      include(${CATCH2_CMAKE_MODULE})
+    else()
+      message(STATUS "Catch2 discovery module not found, using basic test registration")
+    endif()
+  endif()
+  
   add_subdirectory(tests)
 endif()
 

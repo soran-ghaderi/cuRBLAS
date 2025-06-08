@@ -34,7 +34,7 @@ jobs:
       with:
         cuda: '12.5.0'
         method: 'local'
-        use-github-cache: true
+        use-github-cache: false
         log-file-suffix: '${{matrix.os}}.txt'
 
     - name: Verify CUDA installation
@@ -50,6 +50,8 @@ jobs:
         cmake -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release -DCATCH_INSTALL_DOCS=OFF ..
         make -j$(nproc)
         sudo make install
+        # Update ldconfig to ensure library is found
+        sudo ldconfig
 
     - name: Install Catch2 (Windows)  
       if: runner.os == 'Windows'
@@ -64,7 +66,19 @@ jobs:
     - name: make build directory
       run: cmake -E make_directory ${{ github.workspace }}/build
 
-    - name: configure cmake
+    - name: configure cmake (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      working-directory: ${{ github.workspace }}/build
+      run: |
+        cmake $GITHUB_WORKSPACE \
+          -DCMAKE_BUILD_TYPE=Debug \
+          -DBUILD_DOCS=OFF \
+          -DBUILD_TESTING=ON \
+          -DCMAKE_PREFIX_PATH="/usr/local"
+
+    - name: configure cmake (Windows)
+      if: runner.os == 'Windows'
       shell: bash
       working-directory: ${{ github.workspace }}/build
       run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=Debug -DBUILD_DOCS=OFF -DBUILD_TESTING=ON
@@ -97,7 +111,7 @@ jobs:
       with:
         cuda: '12.5.0'
         method: 'local'
-        use-github-cache: true
+        use-github-cache: false
         log-file-suffix: 'python-${{matrix.os}}.txt'
 
     - name: Set up Python
@@ -148,6 +162,7 @@ jobs:
         cmake -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release -DCATCH_INSTALL_DOCS=OFF ..
         make -j$(nproc)
         sudo make install
+        sudo ldconfig
 
     - name: Install Python dependencies
       run: |
@@ -163,7 +178,8 @@ jobs:
           -DBUILD_DOCS=OFF \
           -DBUILD_TESTING=ON \
           -DCMAKE_CXX_FLAGS="--coverage" \
-          -DCMAKE_C_FLAGS="--coverage"
+          -DCMAKE_C_FLAGS="--coverage" \
+          -DCMAKE_PREFIX_PATH="/usr/local"
         cmake --build . --parallel
 
     - name: Install Python package in development mode
