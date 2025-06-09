@@ -48,7 +48,7 @@ jobs:
         path: |
           ~/catch2-build
           C:\Program Files (x86)\Catch2
-        key: catch2-${{ env.CATCH2_VERSION }}-windows-${{ runner.os }}-${{ runner.arch }}-${{ github.ref }}
+        key: catch2-${{ env.CATCH2_VERSION }}-windows-debug-${{ runner.os }}-${{ runner.arch }}-${{ github.ref }}
 
     - name: Install CUDA Toolkit (Linux)
       if: runner.os == 'Linux'
@@ -371,8 +371,9 @@ jobs:
           Write-Output "Current directory: $(Get-Location)"
           New-Item -ItemType Directory -Name "build" -Force | Out-Null
           Set-Location build
-          cmake -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release -DCATCH_INSTALL_DOCS=OFF ..
-          cmake --build . --target install --config Release
+          # Build Catch2 in Debug mode to match main project configuration
+          cmake -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Debug -DCATCH_INSTALL_DOCS=OFF ..
+          cmake --build . --target install --config Debug
         } else {
           Write-Output "Catch2 already installed from cache."
         }
