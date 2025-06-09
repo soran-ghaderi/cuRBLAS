@@ -50,14 +50,25 @@ jobs:
           C:\Program Files (x86)\Catch2
         key: catch2-${{ env.CATCH2_VERSION }}-windows-${{ runner.os }}-${{ runner.arch }}
 
-    - name: Install CUDA Toolkit (Linux/Windows)
+    - name: Install CUDA Toolkit (Linux)
+      if: runner.os == 'Linux'
       uses: Jimver/cuda-toolkit@v0.2.25
-      id: cuda-toolkit
+      id: cuda-toolkit-linux
       with:
         cuda: '12.5.0'
         method: 'local'
         use-github-cache: true
-        log-file-suffix: '${{matrix.os}}.txt'
+        log-file-suffix: 'linux.txt'
+
+    - name: Install CUDA Toolkit (Windows)
+      if: runner.os == 'Windows'
+      uses: Jimver/cuda-toolkit@v0.2.25
+      id: cuda-toolkit-windows
+      with:
+        cuda: '12.5.0'
+        method: 'local'
+        use-github-cache: false
+        log-file-suffix: 'windows.txt'
 
     - name: Verify CUDA installation
       run: nvcc --version
@@ -131,14 +142,25 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install CUDA Toolkit
+    - name: Install CUDA Toolkit (Linux)
+      if: runner.os == 'Linux'
       uses: Jimver/cuda-toolkit@v0.2.25
-      id: cuda-toolkit
+      id: cuda-toolkit-linux
       with:
         cuda: '12.5.0'
         method: 'local'
         use-github-cache: true
-        log-file-suffix: 'python-${{matrix.os}}.txt'
+        log-file-suffix: 'python-linux.txt'
+
+    - name: Install CUDA Toolkit (Windows)
+      if: runner.os == 'Windows'
+      uses: Jimver/cuda-toolkit@v0.2.25
+      id: cuda-toolkit-windows
+      with:
+        cuda: '12.5.0'
+        method: 'local'
+        use-github-cache: false
+        log-file-suffix: 'python-windows.txt'
 
     - name: Set up Python
       uses: actions/setup-python@v5
