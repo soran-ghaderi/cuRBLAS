@@ -273,38 +273,40 @@ jobs:
       run: |
         Write-Output "Setting up MSBuild CUDA integration..."
         
-        # Create MSBuild Directory.Build.props file to set CUDA properties globally
-        $buildPropsContent = @'
-<?xml version="1.0" encoding="utf-8"?>
-<Project>
-  <PropertyGroup>
-    <CudaToolkitDir>$(CUDA_PATH)</CudaToolkitDir>
-    <CUDA_PATH>$(CUDA_PATH)</CUDA_PATH>
-    <CudaVersion>12.5</CudaVersion>
-  </PropertyGroup>
-</Project>
-'@
-        
-        # Replace $(CUDA_PATH) with actual path
-        $buildPropsContent = $buildPropsContent -replace '\$\(CUDA_PATH\)', $env:CUDA_PATH
-        
-        # Write the Directory.Build.props file to the workspace root
+        # Create MSBuild Directory.Build.props file content line by line
         $buildPropsPath = "${{ github.workspace }}\Directory.Build.props"
         Write-Output "Creating MSBuild properties file at: $buildPropsPath"
-        Set-Content -Path $buildPropsPath -Value $buildPropsContent -Encoding UTF8
+        
+        # Write XML content line by line to avoid YAML parsing issues
+        '<?xml version="1.0" encoding="utf-8"?>' | Out-File -FilePath $buildPropsPath -Encoding UTF8
+        '<Project>' | Out-File -FilePath $buildPropsPath -Append -Encoding UTF8
+        '  <PropertyGroup>' | Out-File -FilePath $buildPropsPath -Append -Encoding UTF8
+        "    <CudaToolkitDir>$env:CUDA_PATH</CudaToolkitDir>" | Out-File -FilePath $buildPropsPath -Append -Encoding UTF8
+        "    <CUDA_PATH>$env:CUDA_PATH</CUDA_PATH>" | Out-File -FilePath $buildPropsPath -Append -Encoding UTF8
+        '    <CudaVersion>12.5</CudaVersion>' | Out-File -FilePath $buildPropsPath -Append -Encoding UTF8
+        '  </PropertyGroup>' | Out-File -FilePath $buildPropsPath -Append -Encoding UTF8
+        '</Project>' | Out-File -FilePath $buildPropsPath -Append -Encoding UTF8
         
         # Also create it in the build directory
         $buildDirPropsPath = "${{ github.workspace }}\build\Directory.Build.props"  
         Write-Output "Creating MSBuild properties file at: $buildDirPropsPath"
-        Set-Content -Path $buildDirPropsPath -Value $buildPropsContent -Encoding UTF8
+        
+        '<?xml version="1.0" encoding="utf-8"?>' | Out-File -FilePath $buildDirPropsPath -Encoding UTF8
+        '<Project>' | Out-File -FilePath $buildDirPropsPath -Append -Encoding UTF8
+        '  <PropertyGroup>' | Out-File -FilePath $buildDirPropsPath -Append -Encoding UTF8
+        "    <CudaToolkitDir>$env:CUDA_PATH</CudaToolkitDir>" | Out-File -FilePath $buildDirPropsPath -Append -Encoding UTF8
+        "    <CUDA_PATH>$env:CUDA_PATH</CUDA_PATH>" | Out-File -FilePath $buildDirPropsPath -Append -Encoding UTF8
+        '    <CudaVersion>12.5</CudaVersion>' | Out-File -FilePath $buildDirPropsPath -Append -Encoding UTF8
+        '  </PropertyGroup>' | Out-File -FilePath $buildDirPropsPath -Append -Encoding UTF8
+        '</Project>' | Out-File -FilePath $buildDirPropsPath -Append -Encoding UTF8
         
         # Verify the file was created
         if (Test-Path $buildPropsPath) {
-          Write-Output "✓ MSBuild properties file created successfully"
+          Write-Output "MSBuild properties file created successfully"
           Write-Output "File contents:"
           Get-Content $buildPropsPath
         } else {
-          Write-Output "✗ Failed to create MSBuild properties file"
+          Write-Output "Failed to create MSBuild properties file"
         }
         
         # Set additional environment variables for MSBuild
