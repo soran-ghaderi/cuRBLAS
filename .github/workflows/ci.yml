@@ -65,7 +65,7 @@ jobs:
       shell: pwsh
       run: |
         try {
-          Write-Output "Attempting primary CUDA installation..."
+          Write-Output "Attempting primary CUDA installation for Python testing..."
           # Try the primary installation method
           $env:CUDA_VERSION = "12.5.0"
           # Use the action directly through PowerShell
@@ -81,12 +81,13 @@ jobs:
           Write-Output "Downloading CUDA installer from: $cudaUrl"
           try {
             Invoke-WebRequest -Uri $cudaUrl -OutFile $cudaInstaller -TimeoutSec 300
-            Write-Output "Installing minimal CUDA toolkit for cuRBLAS library..."
-            # Minimal installation for cuRBLAS library - only essential components
+            Write-Output "Installing CUDA toolkit for cuRBLAS Python bindings..."
+            # Install components needed for cuRBLAS library
             $installArgs = @(
               "-s",
               "nvcc_12.5",                        # CUDA compiler - essential
               "cudart_12.5",                      # CUDA runtime - essential  
+              "curand_12.5",                      # cuRAND library - required by cuRBLAS
               "visual_studio_integration_12.5"    # VS integration for Windows builds
             )
             Start-Process -FilePath $cudaInstaller -ArgumentList $installArgs -Wait -NoNewWindow
@@ -94,7 +95,7 @@ jobs:
             $cudaPath = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.5\bin"
             if (Test-Path $cudaPath) {
               echo "$cudaPath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-              Write-Output "Minimal CUDA toolkit installed successfully via fallback method"
+              Write-Output "CUDA toolkit for Python bindings installed successfully"
             } else {
               Write-Warning "CUDA installation may have failed - path not found: $cudaPath"
             }
@@ -494,12 +495,13 @@ jobs:
           Write-Output "Downloading CUDA installer from: $cudaUrl"
           try {
             Invoke-WebRequest -Uri $cudaUrl -OutFile $cudaInstaller -TimeoutSec 300
-            Write-Output "Installing minimal CUDA toolkit for cuRBLAS Python bindings..."
-            # Minimal installation for cuRBLAS library - only essential components
+            Write-Output "Installing CUDA toolkit for cuRBLAS Python bindings..."
+            # Install components needed for cuRBLAS library
             $installArgs = @(
               "-s",
               "nvcc_12.5",                        # CUDA compiler - essential
               "cudart_12.5",                      # CUDA runtime - essential  
+              "curand_12.5",                      # cuRAND library - required by cuRBLAS
               "visual_studio_integration_12.5"    # VS integration for Windows builds
             )
             Start-Process -FilePath $cudaInstaller -ArgumentList $installArgs -Wait -NoNewWindow
@@ -507,7 +509,7 @@ jobs:
             $cudaPath = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.5\bin"
             if (Test-Path $cudaPath) {
               echo "$cudaPath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-              Write-Output "Minimal CUDA toolkit installed successfully for Python bindings"
+              Write-Output "CUDA toolkit for Python bindings installed successfully"
             } else {
               Write-Warning "CUDA installation may have failed - path not found: $cudaPath"
             }
