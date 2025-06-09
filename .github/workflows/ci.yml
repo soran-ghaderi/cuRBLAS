@@ -445,12 +445,26 @@ jobs:
       env:
         CUDA_PATH: ${{ env.CUDA_PATH }}
         CudaToolkitDir: ${{ env.CUDA_PATH }}
-      run: cmake --build . --parallel
+      run: |
+        if [ "${{ runner.os }}" == "Windows" ]; then
+          # On Windows, Visual Studio is a multi-configuration generator and requires --config flag
+          cmake --build . --parallel --config Debug
+        else
+          # On Linux, single-configuration generator doesn't need --config flag
+          cmake --build . --parallel
+        fi
 
     - name: run tests
       shell: bash
       working-directory: ${{ github.workspace }}/build
-      run: ctest --output-on-failure --parallel
+      run: |
+        if [ "${{ runner.os }}" == "Windows" ]; then
+          # On Windows, Visual Studio is a multi-configuration generator and requires -C flag
+          ctest --output-on-failure --parallel -C Debug
+        else
+          # On Linux, single-configuration generator doesn't need -C flag
+          ctest --output-on-failure --parallel
+        fi
 
   python-testing:
     name: Python package testing on ${{matrix.os}}
