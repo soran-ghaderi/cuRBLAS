@@ -274,16 +274,19 @@ jobs:
         Write-Output "Setting up MSBuild CUDA integration..."
         
         # Create MSBuild Directory.Build.props file to set CUDA properties globally
-        $buildPropsContent = @"
+        $buildPropsContent = @'
 <?xml version="1.0" encoding="utf-8"?>
 <Project>
   <PropertyGroup>
-    <CudaToolkitDir>$env:CUDA_PATH</CudaToolkitDir>
-    <CUDA_PATH>$env:CUDA_PATH</CUDA_PATH>
+    <CudaToolkitDir>$(CUDA_PATH)</CudaToolkitDir>
+    <CUDA_PATH>$(CUDA_PATH)</CUDA_PATH>
     <CudaVersion>12.5</CudaVersion>
   </PropertyGroup>
 </Project>
-"@
+'@
+        
+        # Replace $(CUDA_PATH) with actual path
+        $buildPropsContent = $buildPropsContent -replace '\$\(CUDA_PATH\)', $env:CUDA_PATH
         
         # Write the Directory.Build.props file to the workspace root
         $buildPropsPath = "${{ github.workspace }}\Directory.Build.props"
