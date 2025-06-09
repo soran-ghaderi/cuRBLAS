@@ -158,10 +158,21 @@ jobs:
           Write-Output "Cache miss or Catch2 not found, installing Catch2..."
           # Clean up any existing directory
           if (Test-Path "~/catch2-build") { Remove-Item -Recurse -Force "~/catch2-build" }
-          git clone -b v$Env:CATCH2_VERSION https://github.com/catchorg/Catch2.git ~/catch2-build
-          cd ~/catch2-build
-          mkdir build
-          cd build
+          # Ensure parent directory exists and create the target directory
+          $catch2Dir = Resolve-Path ~ | Join-Path -ChildPath "catch2-build"
+          Write-Output "Creating directory: $catch2Dir"
+          New-Item -ItemType Directory -Force -Path $catch2Dir | Out-Null
+          # Clone Catch2
+          Write-Output "Cloning Catch2 v$Env:CATCH2_VERSION..."
+          git clone -b v$Env:CATCH2_VERSION https://github.com/catchorg/Catch2.git $catch2Dir
+          if (-not (Test-Path $catch2Dir)) {
+            Write-Error "Failed to clone Catch2 repository"
+            exit 1
+          }
+          Set-Location $catch2Dir
+          Write-Output "Current directory: $(Get-Location)"
+          New-Item -ItemType Directory -Name "build" -Force | Out-Null
+          Set-Location build
           cmake -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release -DCATCH_INSTALL_DOCS=OFF ..
           cmake --build . --target install --config Release
         } else {
@@ -404,7 +415,8 @@ jobs:
         g++ test.cpp -o test && echo "G++ basic test: PASSED" || echo "G++ basic test: FAILED"
         rm -f test.cpp test
         
-        # First attempt with Ninja generator
+        # First attempt with Ninja generator using environment variable
+        export CMAKE_GENERATOR="Ninja"
         python -m pip install --no-build-isolation \
           --config-settings=build-dir="${{ github.workspace }}/build_python" \
           --config-settings=cmake.define.CMAKE_CXX_FLAGS="--coverage" \
@@ -412,11 +424,11 @@ jobs:
           --config-settings=cmake.define.BUILD_TESTING="OFF" \
           --config-settings=cmake.define.BUILD_PYTHON="ON" \
           --config-settings=cmake.build-type="Debug" \
-          --config-settings=cmake.generator="Ninja" \
           --config-settings=cmake.verbose="true" \
           -v -e . || {
             echo "=== First attempt with Ninja failed, trying Unix Makefiles ==="
             rm -rf ${{ github.workspace }}/build_python
+            export CMAKE_GENERATOR="Unix Makefiles"
             python -m pip install --no-build-isolation \
               --config-settings=build-dir="${{ github.workspace }}/build_python_fallback" \
               --config-settings=cmake.define.CMAKE_CXX_FLAGS="--coverage" \
@@ -424,7 +436,6 @@ jobs:
               --config-settings=cmake.define.BUILD_TESTING="OFF" \
               --config-settings=cmake.define.BUILD_PYTHON="ON" \
               --config-settings=cmake.build-type="Debug" \
-              --config-settings=cmake.generator="Unix Makefiles" \
               --config-settings=cmake.verbose="true" \
               -v -e .
           }
