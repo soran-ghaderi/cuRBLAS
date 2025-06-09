@@ -1,8 +1,60 @@
 #include "cuRBLAS/curblas.h"
 #include "cuRBLAS/curblas_types.h"
 #include <cuda_runtime.h>
-#include <curand.h>
 #include <memory>
+#include <cmath>
+
+// Define M_PI if not available
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
+/**
+ * Custom random number generator state for CUDA
+ */
+struct curblasRngState {
+    unsigned long long seed;
+    unsigned long long counter;
+    
+    __device__ __host__ curblasRngState(unsigned long long s = 1234ULL) : seed(s), counter(0) {}
+    
+    // Simple PRNG based on linear congruential generator
+    __device__ __host__ unsigned int next() {
+        counter = (counter * 1103515245ULL + 12345ULL) ^ seed;
+        return (unsigned int)(counter >> 16);
+    }
+    
+    // Generate float in [0, 1)
+    __device__ __host__ float nextFloat() {
+        return (float)next() / (float)UINT_MAX;
+    }
+    
+    // Generate normal distributed float (Box-Muller transform)
+    __device__ __host__ float nextGaussian() {
+        static bool hasSpare = false;
+        static float spare;
+        
+        if (hasSpare) {
+            hasSpare = false;
+            return spare;
+        }
+        
+        hasSpare = true;
+        float u = nextFloat();
+        float v = nextFloat();
+        
+        // Use device-compatible math functions
+        #ifdef __CUDA_ARCH__
+        float mag = sqrtf(-2.0f * logf(u));
+        spare = mag * cosf(2.0f * (float)M_PI * v);
+        return mag * sinf(2.0f * (float)M_PI * v);
+        #else
+        float mag = sqrt(-2.0f * log(u));
+        spare = mag * cos(2.0f * (float)M_PI * v);
+        return mag * sin(2.0f * (float)M_PI * v);
+        #endif
+    }
+};
 
 /**
  * Internal cuRBLAS context structure
@@ -12,8 +64,8 @@ struct curblasContext {
     cudaStream_t stream;
     bool ownsStream;
     
-    // Random number generation
-    curandGenerator_t rng;
+    // Custom random number generation
+    curblasRngState* rng;
     unsigned long long seed;
     
     // Configuration
@@ -84,30 +136,12 @@ curblasStatus_t curblasCreate(curblasHandle_t* handle) {
         }
         ctx->ownsStream = true;
         
-        // Initialize random number generator
-        curandStatus_t curandStatus = curandCreateGenerator(&ctx->rng, CURAND_RNG_PSEUDO_DEFAULT);
-        if (curandStatus != CURAND_STATUS_SUCCESS) {
+        // Initialize custom random number generator
+        ctx->rng = new curblasRngState(ctx->seed);
+        if (!ctx->rng) {
             cudaStreamDestroy(ctx->stream);
             delete ctx;
             return CURBLAS_STATUS_ALLOC_FAILED;
-        }
-        
-        // Set random seed
-        curandStatus = curandSetPseudoRandomGeneratorSeed(ctx->rng, ctx->seed);
-        if (curandStatus != CURAND_STATUS_SUCCESS) {
-            curandDestroyGenerator(ctx->rng);
-            cudaStreamDestroy(ctx->stream);
-            delete ctx;
-            return CURBLAS_STATUS_INTERNAL_ERROR;
-        }
-        
-        // Set stream for random number generator
-        curandStatus = curandSetStream(ctx->rng, ctx->stream);
-        if (curandStatus != CURAND_STATUS_SUCCESS) {
-            curandDestroyGenerator(ctx->rng);
-            cudaStreamDestroy(ctx->stream);
-            delete ctx;
-            return CURBLAS_STATUS_INTERNAL_ERROR;
         }
         
         *handle = ctx;
@@ -127,9 +161,9 @@ curblasStatus_t curblasDestroy(curblasHandle_t handle) {
     
     curblasContext* ctx = static_cast<curblasContext*>(handle);
     
-    // Destroy random number generator
+    // Destroy custom random number generator
     if (ctx->rng) {
-        curandDestroyGenerator(ctx->rng);
+        delete ctx->rng;
     }
     
     // Destroy stream if we own it
@@ -174,13 +208,7 @@ curblasStatus_t curblasSetStream(curblasHandle_t handle, cudaStream_t streamId) 
     ctx->stream = streamId;
     ctx->ownsStream = false;  // We don't own external streams
     
-    // Update random number generator stream
-    if (ctx->rng) {
-        curandStatus_t curandStatus = curandSetStream(ctx->rng, ctx->stream);
-        if (curandStatus != CURAND_STATUS_SUCCESS) {
-            return CURBLAS_STATUS_INTERNAL_ERROR;
-        }
-    }
+    // Note: No need to update stream for custom RNG since it's not tied to CUDA streams
     
     return CURBLAS_STATUS_SUCCESS;
 }
@@ -258,12 +286,10 @@ curblasStatus_t curblasSetRandomSeed(curblasHandle_t handle, unsigned long long 
     curblasContext* ctx = static_cast<curblasContext*>(handle);
     ctx->seed = seed;
     
-    // Update random number generator seed (only if we have a GPU context)
+    // Update custom random number generator seed
     if (ctx->rng) {
-        curandStatus_t curandStatus = curandSetPseudoRandomGeneratorSeed(ctx->rng, seed);
-        if (curandStatus != CURAND_STATUS_SUCCESS) {
-            return CURBLAS_STATUS_INTERNAL_ERROR;
-        }
+        ctx->rng->seed = seed;
+        ctx->rng->counter = 0;  // Reset counter when seed changes
     }
     
     return CURBLAS_STATUS_SUCCESS;

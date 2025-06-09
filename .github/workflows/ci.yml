@@ -87,7 +87,6 @@ jobs:
               "-s",
               "nvcc_12.5",                        # CUDA compiler - essential
               "cudart_12.5",                      # CUDA runtime - essential  
-              "curand_12.5",                      # cuRAND library - required by cuRBLAS
               "visual_studio_integration_12.5"    # VS integration for Windows builds
             )
             Start-Process -FilePath $cudaInstaller -ArgumentList $installArgs -Wait -NoNewWindow
@@ -501,7 +500,6 @@ jobs:
               "-s",
               "nvcc_12.5",                        # CUDA compiler - essential
               "cudart_12.5",                      # CUDA runtime - essential  
-              "curand_12.5",                      # cuRAND library - required by cuRBLAS
               "visual_studio_integration_12.5"    # VS integration for Windows builds
             )
             Start-Process -FilePath $cudaInstaller -ArgumentList $installArgs -Wait -NoNewWindow

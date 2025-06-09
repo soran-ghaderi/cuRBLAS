@@ -30,8 +30,10 @@ bool ownsStream
 ### rng
 
 ```c
-curandGenerator_t rng
+curblasRngState* rng
 ```
+
+Custom random number generator state optimized for CUDA devices
 
 ### seed
 
@@ -68,4 +70,3 @@ int deviceId
 ```c
 int version
 ```
-

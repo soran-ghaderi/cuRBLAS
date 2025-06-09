@@ -15,7 +15,6 @@ if(CUDA_FOUND)
     # Link CUDA libraries
     target_link_libraries(cuRBLAS PUBLIC 
         CUDA::cudart
-        CUDA::curand
     )
     
     # Define CUDA availability for code
