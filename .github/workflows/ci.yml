@@ -64,45 +64,66 @@ jobs:
       if: runner.os == 'Windows'
       shell: pwsh
       run: |
+        Write-Output "Installing CUDA Toolkit for Windows (Python testing)..."
+        
+        # Download CUDA installer directly
+        $cudaUrl = "https://developer.download.nvidia.com/compute/cuda/12.5.1/local_installers/cuda_12.5.1_windows.exe"
+        $cudaInstaller = "$env:TEMP\cuda_installer.exe"
+        
         try {
-          Write-Output "Attempting primary CUDA installation..."
-          # Try the primary installation method
-          $env:CUDA_VERSION = "12.5.0"
-          # Use the action directly through PowerShell
-          $actionPath = "${{ github.action_path }}"
-          Write-Output "Primary installation method temporarily unavailable, using fallback..."
-          throw "Forcing fallback"
-        }
-        catch {
-          Write-Output "Primary CUDA installation failed, trying fallback method..."
-          # Download CUDA installer directly
-          $cudaUrl = "https://developer.download.nvidia.com/compute/cuda/12.5.1/network_installers/cuda_12.5.1_windows_network.exe"
-          $cudaInstaller = "$env:TEMP\cuda_installer.exe"
           Write-Output "Downloading CUDA installer from: $cudaUrl"
-          try {
-            Invoke-WebRequest -Uri $cudaUrl -OutFile $cudaInstaller -TimeoutSec 300
-            Write-Output "Installing minimal CUDA toolkit for cuRBLAS library..."
-            # Minimal installation for cuRBLAS library - only essential components
-            $installArgs = @(
-              "-s",
-              "nvcc_12.5",                        # CUDA compiler - essential
-              "cudart_12.5",                      # CUDA runtime - essential  
-              "visual_studio_integration_12.5"    # VS integration for Windows builds
-            )
-            Start-Process -FilePath $cudaInstaller -ArgumentList $installArgs -Wait -NoNewWindow
-            # Add CUDA to PATH
-            $cudaPath = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.5\bin"
-            if (Test-Path $cudaPath) {
-              echo "$cudaPath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-              Write-Output "Minimal CUDA toolkit installed successfully via fallback method"
-            } else {
-              Write-Warning "CUDA installation may have failed - path not found: $cudaPath"
-            }
+          Invoke-WebRequest -Uri $cudaUrl -OutFile $cudaInstaller -TimeoutSec 600
+          Write-Output "Download completed successfully"
+          
+          Write-Output "Installing CUDA toolkit..."
+          # Install with silent mode and essential components
+          $installArgs = @(
+            "-s",
+            "nvcc_12.5",
+            "cudart_12.5", 
+            "curand_12.5",
+            "cusolver_12.5",
+            "cusparse_12.5",
+            "cublas_12.5",
+            "visual_studio_integration_12.5"
+          )
+          
+          $process = Start-Process -FilePath $cudaInstaller -ArgumentList $installArgs -Wait -PassThru -NoNewWindow
+          
+          if ($process.ExitCode -eq 0) {
+            Write-Output "CUDA installation completed successfully"
+          } else {
+            Write-Warning "CUDA installer returned exit code: $($process.ExitCode)"
           }
-          catch {
-            Write-Error "Both primary and fallback CUDA installation methods failed: $_"
-            # Continue anyway as CUDA might not be strictly required for all builds
-            Write-Output "Continuing without CUDA installation..."
+          
+          # Set up environment variables
+          $cudaBinPath = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.5\bin"
+          $cudaIncludePath = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.5\include"
+          $cudaLibPath = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.5\lib\x64"
+          
+          if (Test-Path $cudaBinPath) {
+            Write-Output "Adding CUDA paths to environment..."
+            echo "$cudaBinPath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            
+            # Set environment variables for the build
+            echo "CUDA_PATH=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.5" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            echo "CUDA_PATH_V12_5=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.5" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            echo "CUDA_INC_PATH=$cudaIncludePath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            echo "CUDA_LIB_PATH=$cudaLibPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            
+            Write-Output "CUDA toolkit installed and configured successfully"
+          } else {
+            Write-Error "CUDA installation failed - binary path not found: $cudaBinPath"
+            exit 1
+          }
+          
+        } catch {
+          Write-Error "CUDA installation failed with error: $_"
+          exit 1
+        } finally {
+          # Clean up installer
+          if (Test-Path $cudaInstaller) {
+            Remove-Item $cudaInstaller -Force
           }
         }
 
@@ -201,7 +222,17 @@ jobs:
       if: runner.os == 'Windows'
       shell: bash
       working-directory: ${{ github.workspace }}/build
-      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=Debug -DBUILD_DOCS=OFF -DBUILD_TESTING=ON
+      run: |
+        # Set CUDA paths for CMake
+        export CMAKE_PREFIX_PATH="C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.5;$CMAKE_PREFIX_PATH"
+        export CUDA_TOOLKIT_ROOT_DIR="C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.5"
+        
+        cmake $GITHUB_WORKSPACE \
+          -DCMAKE_BUILD_TYPE=Debug \
+          -DBUILD_DOCS=OFF \
+          -DBUILD_TESTING=ON \
+          -DCUDA_TOOLKIT_ROOT_DIR="C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.5" \
+          -DCUDAToolkit_ROOT="C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.5"
 
     - name: build
       shell: bash
@@ -239,45 +270,66 @@ jobs:
       if: runner.os == 'Windows'
       shell: pwsh
       run: |
+        Write-Output "Installing CUDA Toolkit for Windows (Python testing)..."
+        
+        # Download CUDA installer directly
+        $cudaUrl = "https://developer.download.nvidia.com/compute/cuda/12.5.1/local_installers/cuda_12.5.1_windows.exe"
+        $cudaInstaller = "$env:TEMP\cuda_installer.exe"
+        
         try {
-          Write-Output "Attempting primary CUDA installation for Python testing..."
-          # Try the primary installation method
-          $env:CUDA_VERSION = "12.5.0"
-          # Use the action directly through PowerShell
-          $actionPath = "${{ github.action_path }}"
-          Write-Output "Primary installation method temporarily unavailable, using fallback..."
-          throw "Forcing fallback"
-        }
-        catch {
-          Write-Output "Primary CUDA installation failed, trying fallback method..."
-          # Download CUDA installer directly
-          $cudaUrl = "https://developer.download.nvidia.com/compute/cuda/12.5.1/network_installers/cuda_12.5.1_windows_network.exe"
-          $cudaInstaller = "$env:TEMP\cuda_installer.exe"
           Write-Output "Downloading CUDA installer from: $cudaUrl"
-          try {
-            Invoke-WebRequest -Uri $cudaUrl -OutFile $cudaInstaller -TimeoutSec 300
-            Write-Output "Installing minimal CUDA toolkit for cuRBLAS Python bindings..."
-            # Minimal installation for cuRBLAS library - only essential components
-            $installArgs = @(
-              "-s",
-              "nvcc_12.5",                        # CUDA compiler - essential
-              "cudart_12.5",                      # CUDA runtime - essential  
-              "visual_studio_integration_12.5"    # VS integration for Windows builds
-            )
-            Start-Process -FilePath $cudaInstaller -ArgumentList $installArgs -Wait -NoNewWindow
-            # Add CUDA to PATH
-            $cudaPath = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.5\bin"
-            if (Test-Path $cudaPath) {
-              echo "$cudaPath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-              Write-Output "Minimal CUDA toolkit installed successfully for Python bindings"
-            } else {
-              Write-Warning "CUDA installation may have failed - path not found: $cudaPath"
-            }
+          Invoke-WebRequest -Uri $cudaUrl -OutFile $cudaInstaller -TimeoutSec 600
+          Write-Output "Download completed successfully"
+          
+          Write-Output "Installing CUDA toolkit..."
+          # Install with silent mode and essential components
+          $installArgs = @(
+            "-s",
+            "nvcc_12.5",
+            "cudart_12.5", 
+            "curand_12.5",
+            "cusolver_12.5",
+            "cusparse_12.5",
+            "cublas_12.5",
+            "visual_studio_integration_12.5"
+          )
+          
+          $process = Start-Process -FilePath $cudaInstaller -ArgumentList $installArgs -Wait -PassThru -NoNewWindow
+          
+          if ($process.ExitCode -eq 0) {
+            Write-Output "CUDA installation completed successfully"
+          } else {
+            Write-Warning "CUDA installer returned exit code: $($process.ExitCode)"
           }
-          catch {
-            Write-Error "Both primary and fallback CUDA installation methods failed: $_"
-            # Continue anyway as CUDA might not be strictly required for all builds
-            Write-Output "Continuing without CUDA installation..."
+          
+          # Set up environment variables
+          $cudaBinPath = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.5\bin"
+          $cudaIncludePath = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.5\include"
+          $cudaLibPath = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.5\lib\x64"
+          
+          if (Test-Path $cudaBinPath) {
+            Write-Output "Adding CUDA paths to environment..."
+            echo "$cudaBinPath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            
+            # Set environment variables for the build
+            echo "CUDA_PATH=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.5" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            echo "CUDA_PATH_V12_5=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.5" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            echo "CUDA_INC_PATH=$cudaIncludePath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            echo "CUDA_LIB_PATH=$cudaLibPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            
+            Write-Output "CUDA toolkit installed and configured successfully"
+          } else {
+            Write-Error "CUDA installation failed - binary path not found: $cudaBinPath"
+            exit 1
+          }
+          
+        } catch {
+          Write-Error "CUDA installation failed with error: $_"
+          exit 1
+        } finally {
+          # Clean up installer
+          if (Test-Path $cudaInstaller) {
+            Remove-Item $cudaInstaller -Force
           }
         }
 
