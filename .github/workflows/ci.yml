@@ -274,7 +274,17 @@ jobs:
         Write-Output "Setting up MSBuild CUDA integration..."
         
         # Create MSBuild Directory.Build.props file content line by line
-        $buildPropsPath = "${{ github.workspace }}\Directory.Build.props"
+        $workspace = "${{ github.workspace }}"
+        $buildDir = Join-Path -Path $workspace -ChildPath "build"
+        $buildPropsPath = Join-Path -Path $workspace -ChildPath "Directory.Build.props"
+        $buildDirPropsPath = Join-Path -Path $buildDir -ChildPath "Directory.Build.props"
+        
+        # Ensure the build directory exists
+        if (-not (Test-Path $buildDir)) {
+          Write-Output "Creating build directory at: $buildDir"
+          New-Item -ItemType Directory -Path $buildDir | Out-Null
+        }
+        
         Write-Output "Creating MSBuild properties file at: $buildPropsPath"
         
         # Write XML content line by line to avoid YAML parsing issues
@@ -288,7 +298,6 @@ jobs:
         '</Project>' | Out-File -FilePath $buildPropsPath -Append -Encoding UTF8
         
         # Also create it in the build directory
-        $buildDirPropsPath = "${{ github.workspace }}\build\Directory.Build.props"  
         Write-Output "Creating MSBuild properties file at: $buildDirPropsPath"
         
         '<?xml version="1.0" encoding="utf-8"?>' | Out-File -FilePath $buildDirPropsPath -Encoding UTF8
@@ -302,11 +311,17 @@ jobs:
         
         # Verify the file was created
         if (Test-Path $buildPropsPath) {
-          Write-Output "MSBuild properties file created successfully"
+          Write-Output "MSBuild properties file created successfully at: $buildPropsPath"
           Write-Output "File contents:"
           Get-Content $buildPropsPath
         } else {
-          Write-Output "Failed to create MSBuild properties file"
+          Write-Output "Failed to create MSBuild properties file at: $buildPropsPath"
+        }
+        
+        if (Test-Path $buildDirPropsPath) {
+          Write-Output "MSBuild properties file created successfully at: $buildDirPropsPath"
+        } else {
+          Write-Output "Failed to create MSBuild properties file at: $buildDirPropsPath"
         }
         
         # Set additional environment variables for MSBuild
