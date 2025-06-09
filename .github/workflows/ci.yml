@@ -267,6 +267,48 @@ jobs:
           Write-Output "✗ CUDA_PATH not set"
         }
 
+    - name: Setup MSBuild CUDA integration (Windows)
+      if: runner.os == 'Windows'  
+      shell: pwsh
+      run: |
+        Write-Output "Setting up MSBuild CUDA integration..."
+        
+        # Create MSBuild Directory.Build.props file to set CUDA properties globally
+        $buildPropsContent = @"
+<?xml version="1.0" encoding="utf-8"?>
+<Project>
+  <PropertyGroup>
+    <CudaToolkitDir>$env:CUDA_PATH</CudaToolkitDir>
+    <CUDA_PATH>$env:CUDA_PATH</CUDA_PATH>
+    <CudaVersion>12.5</CudaVersion>
+  </PropertyGroup>
+</Project>
+"@
+        
+        # Write the Directory.Build.props file to the workspace root
+        $buildPropsPath = "${{ github.workspace }}\Directory.Build.props"
+        Write-Output "Creating MSBuild properties file at: $buildPropsPath"
+        Set-Content -Path $buildPropsPath -Value $buildPropsContent -Encoding UTF8
+        
+        # Also create it in the build directory
+        $buildDirPropsPath = "${{ github.workspace }}\build\Directory.Build.props"  
+        Write-Output "Creating MSBuild properties file at: $buildDirPropsPath"
+        Set-Content -Path $buildDirPropsPath -Value $buildPropsContent -Encoding UTF8
+        
+        # Verify the file was created
+        if (Test-Path $buildPropsPath) {
+          Write-Output "✓ MSBuild properties file created successfully"
+          Write-Output "File contents:"
+          Get-Content $buildPropsPath
+        } else {
+          Write-Output "✗ Failed to create MSBuild properties file"
+        }
+        
+        # Set additional environment variables for MSBuild
+        Write-Output "Setting MSBuild environment variables..."
+        echo "CUDA_PATH=$env:CUDA_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        echo "CudaToolkitDir=$env:CUDA_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
     - name: Install Catch2 (Linux)
       if: runner.os == 'Linux'
       run: |
@@ -337,6 +379,9 @@ jobs:
       if: runner.os == 'Windows'
       shell: bash
       working-directory: ${{ github.workspace }}/build
+      env:
+        CUDA_PATH: ${{ env.CUDA_PATH }}
+        CudaToolkitDir: ${{ env.CUDA_PATH }}
       run: |
         # Configure CMake with explicit CUDA paths for Windows
         echo "Configuring CMake with CUDA support..."
@@ -353,6 +398,10 @@ jobs:
         echo "CUDA_INCLUDE_CMAKE: $CUDA_INCLUDE_CMAKE"
         echo "CUDA_LIB_CMAKE: $CUDA_LIB_CMAKE"
         
+        # Set MSBuild environment variables for CUDA
+        export CUDA_PATH="$CUDA_PATH"
+        export CudaToolkitDir="$CUDA_PATH"
+        
         # Configure with explicit CUDA paths
         cmake "$GITHUB_WORKSPACE" \
           -DCMAKE_BUILD_TYPE=Debug \
@@ -366,11 +415,15 @@ jobs:
           -DCMAKE_PREFIX_PATH="$CUDA_PATH_CMAKE" \
           -DCMAKE_CUDA_COMPILER="$CUDA_PATH_CMAKE/bin/nvcc.exe" \
           -DCUDA_NVCC_EXECUTABLE="$CUDA_PATH_CMAKE/bin/nvcc.exe" \
+          -DCMAKE_VS_PLATFORM_NAME=x64 \
           -DCMAKE_VERBOSE_MAKEFILE=ON
 
     - name: build
       shell: bash
       working-directory: ${{ github.workspace }}/build
+      env:
+        CUDA_PATH: ${{ env.CUDA_PATH }}
+        CudaToolkitDir: ${{ env.CUDA_PATH }}
       run: cmake --build . --parallel
 
     - name: run tests
