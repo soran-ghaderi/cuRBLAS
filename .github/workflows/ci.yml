@@ -28,23 +28,45 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Cache Catch2 (Linux)
+      if: runner.os == 'Linux'
+      uses: actions/cache@v4
+      id: cache-catch2-linux
+      with:
+        path: |
+          ~/catch2-build
+          /usr/local/lib/cmake/Catch2
+          /usr/local/include/catch2
+          /usr/local/lib/libCatch2*
+        key: catch2-${{ env.CATCH2_VERSION }}-linux-${{ runner.os }}-${{ runner.arch }}
+
+    - name: Cache Catch2 (Windows)
+      if: runner.os == 'Windows'
+      uses: actions/cache@v4
+      id: cache-catch2-windows
+      with:
+        path: |
+          ~/catch2-build
+          C:\Program Files (x86)\Catch2
+        key: catch2-${{ env.CATCH2_VERSION }}-windows-${{ runner.os }}-${{ runner.arch }}
+
     - name: Install CUDA Toolkit (Linux/Windows)
       uses: Jimver/cuda-toolkit@v0.2.25
       id: cuda-toolkit
       with:
         cuda: '12.5.0'
         method: 'local'
-        use-github-cache: false
+        use-github-cache: true
         log-file-suffix: '${{matrix.os}}.txt'
 
     - name: Verify CUDA installation
       run: nvcc --version
 
     - name: Install Catch2 (Linux)
-      if: runner.os == 'Linux'
+      if: runner.os == 'Linux' && steps.cache-catch2-linux.outputs.cache-hit != 'true'
       run: |
-        git clone -b v$CATCH2_VERSION https://github.com/catchorg/Catch2.git
-        cd Catch2
+        git clone -b v$CATCH2_VERSION https://github.com/catchorg/Catch2.git ~/catch2-build
+        cd ~/catch2-build
         mkdir build
         cd build
         cmake -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release -DCATCH_INSTALL_DOCS=OFF ..
@@ -54,14 +76,18 @@ jobs:
         sudo ldconfig
 
     - name: Install Catch2 (Windows)  
-      if: runner.os == 'Windows'
+      if: runner.os == 'Windows' && steps.cache-catch2-windows.outputs.cache-hit != 'true'
       run: |
-        git clone -b v$Env:CATCH2_VERSION https://github.com/catchorg/Catch2.git
-        cd Catch2
+        git clone -b v$Env:CATCH2_VERSION https://github.com/catchorg/Catch2.git ~/catch2-build
+        cd ~/catch2-build
         mkdir build
         cd build
         cmake -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release -DCATCH_INSTALL_DOCS=OFF ..
         cmake --build . --target install --config Release
+
+    - name: Update library cache (Linux)
+      if: runner.os == 'Linux'
+      run: sudo ldconfig
 
     - name: make build directory
       run: cmake -E make_directory ${{ github.workspace }}/build
@@ -111,7 +137,7 @@ jobs:
       with:
         cuda: '12.5.0'
         method: 'local'
-        use-github-cache: false
+        use-github-cache: true
         log-file-suffix: 'python-${{matrix.os}}.txt'
 
     - name: Set up Python
@@ -134,13 +160,24 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Cache Catch2 (Coverage)
+      uses: actions/cache@v4
+      id: cache-catch2-coverage
+      with:
+        path: |
+          ~/catch2-build
+          /usr/local/lib/cmake/Catch2
+          /usr/local/include/catch2
+          /usr/local/lib/libCatch2*
+        key: catch2-${{ env.CATCH2_VERSION }}-coverage-linux
+
     - name: Install CUDA Toolkit
       uses: Jimver/cuda-toolkit@v0.2.25
       id: cuda-toolkit
       with:
         cuda: '12.5.0'
         method: 'network'
-        use-github-cache: false
+        use-github-cache: true
         log-file-suffix: 'coverage-ubuntu.txt'
 
     - name: Set up Python
@@ -154,15 +191,19 @@ jobs:
         sudo apt-get install -y lcov
 
     - name: Install Catch2 with proper configuration
+      if: steps.cache-catch2-coverage.outputs.cache-hit != 'true'
       run: |
-        git clone -b v$CATCH2_VERSION https://github.com/catchorg/Catch2.git
-        cd Catch2
+        git clone -b v$CATCH2_VERSION https://github.com/catchorg/Catch2.git ~/catch2-build
+        cd ~/catch2-build
         mkdir build
         cd build
         cmake -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release -DCATCH_INSTALL_DOCS=OFF ..
         make -j$(nproc)
         sudo make install
         sudo ldconfig
+
+    - name: Update library cache
+      run: sudo ldconfig
 
     - name: Install Python dependencies
       run: |

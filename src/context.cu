@@ -56,8 +56,21 @@ curblasStatus_t curblasCreate(curblasHandle_t* handle) {
         // Allocate context
         curblasContext* ctx = new curblasContext();
         
+        // Check if CUDA is available and there are devices
+        int deviceCount = 0;
+        cudaError_t cudaStatus = cudaGetDeviceCount(&deviceCount);
+        if (cudaStatus != cudaSuccess || deviceCount == 0) {
+            // CUDA not available or no devices - create a CPU-only context
+            ctx->deviceId = -1;
+            ctx->stream = nullptr;
+            ctx->ownsStream = false;
+            ctx->rng = nullptr;
+            *handle = ctx;
+            return CURBLAS_STATUS_SUCCESS;
+        }
+        
         // Get current device
-        cudaError_t cudaStatus = cudaGetDevice(&ctx->deviceId);
+        cudaStatus = cudaGetDevice(&ctx->deviceId);
         if (cudaStatus != cudaSuccess) {
             delete ctx;
             return CURBLAS_STATUS_NOT_INITIALIZED;
@@ -148,6 +161,11 @@ curblasStatus_t curblasSetStream(curblasHandle_t handle, cudaStream_t streamId) 
     
     curblasContext* ctx = static_cast<curblasContext*>(handle);
     
+    // For CPU-only contexts, just return success (no CUDA operations)
+    if (ctx->deviceId == -1) {
+        return CURBLAS_STATUS_SUCCESS;
+    }
+    
     // Destroy old stream if we own it
     if (ctx->stream && ctx->ownsStream) {
         cudaStreamDestroy(ctx->stream);
@@ -173,6 +191,13 @@ curblasStatus_t curblasGetStream(curblasHandle_t handle, cudaStream_t* streamId)
     }
     
     curblasContext* ctx = static_cast<curblasContext*>(handle);
+    
+    // For CPU-only contexts, return null stream
+    if (ctx->deviceId == -1) {
+        *streamId = nullptr;
+        return CURBLAS_STATUS_SUCCESS;
+    }
+    
     *streamId = ctx->stream;
     
     return CURBLAS_STATUS_SUCCESS;
@@ -233,7 +258,7 @@ curblasStatus_t curblasSetRandomSeed(curblasHandle_t handle, unsigned long long 
     curblasContext* ctx = static_cast<curblasContext*>(handle);
     ctx->seed = seed;
     
-    // Update random number generator seed
+    // Update random number generator seed (only if we have a GPU context)
     if (ctx->rng) {
         curandStatus_t curandStatus = curandSetPseudoRandomGeneratorSeed(ctx->rng, seed);
         if (curandStatus != CURAND_STATUS_SUCCESS) {
