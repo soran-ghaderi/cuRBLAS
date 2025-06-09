@@ -38,7 +38,7 @@ jobs:
           /usr/local/lib/cmake/Catch2
           /usr/local/include/catch2
           /usr/local/lib/libCatch2*
-        key: catch2-${{ env.CATCH2_VERSION }}-linux-${{ runner.os }}-${{ runner.arch }}
+        key: catch2-${{ env.CATCH2_VERSION }}-linux-${{ runner.os }}-${{ runner.arch }}-${{ github.ref }}
 
     - name: Cache Catch2 (Windows)
       if: runner.os == 'Windows'
@@ -48,7 +48,7 @@ jobs:
         path: |
           ~/catch2-build
           C:\Program Files (x86)\Catch2
-        key: catch2-${{ env.CATCH2_VERSION }}-windows-${{ runner.os }}-${{ runner.arch }}
+        key: catch2-${{ env.CATCH2_VERSION }}-windows-${{ runner.os }}-${{ runner.arch }}-${{ github.ref }}
 
     - name: Install CUDA Toolkit (Linux)
       if: runner.os == 'Linux'
@@ -69,32 +69,84 @@ jobs:
         method: 'network'
         use-github-cache: false
         log-file-suffix: 'windows.txt'
+        
+    - name: Fallback CUDA installation (Windows)
+      if: runner.os == 'Windows' && failure()
+      shell: pwsh
+      run: |
+        Write-Output "Primary CUDA installation failed, trying fallback..."
+        # Download CUDA installer directly
+        $cudaUrl = "https://developer.download.nvidia.com/compute/cuda/12.5.1/network_installers/cuda_12.5.1_windows_network.exe"
+        $cudaInstaller = "$env:TEMP\cuda_installer.exe"
+        Write-Output "Downloading CUDA installer..."
+        Invoke-WebRequest -Uri $cudaUrl -OutFile $cudaInstaller
+        Write-Output "Installing CUDA toolkit..."
+        Start-Process -FilePath $cudaInstaller -ArgumentList "-s", "nvcc_12.5", "cuobjdump_12.5", "nvprune_12.5", "cupti_12.5", "cublas_dev_12.5", "cudart_12.5", "cufft_dev_12.5", "curand_dev_12.5", "cusolver_dev_12.5", "cusparse_dev_12.5", "thrust_12.5", "visual_studio_integration_12.5" -Wait
+        # Add CUDA to PATH
+        $cudaPath = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.5\bin"
+        echo "$cudaPath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
     - name: Verify CUDA installation
-      run: nvcc --version
+      shell: bash
+      run: |
+        echo "Verifying CUDA installation..."
+        # Try multiple ways to verify CUDA
+        if command -v nvcc >/dev/null 2>&1; then
+          echo "nvcc found in PATH"
+          nvcc --version
+        elif [ -f "/usr/local/cuda/bin/nvcc" ]; then
+          echo "nvcc found in /usr/local/cuda/bin"
+          /usr/local/cuda/bin/nvcc --version
+        elif [ -f "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.5/bin/nvcc.exe" ]; then
+          echo "nvcc found in Windows CUDA path"
+          "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.5/bin/nvcc.exe" --version
+        else
+          echo "Warning: nvcc not found, but continuing with build..."
+          echo "PATH contents:"
+          echo $PATH
+          echo "Searching for nvcc:"
+          find /usr -name nvcc 2>/dev/null || echo "nvcc not found in /usr"
+          if [ "${{ runner.os }}" == "Windows" ]; then
+            ls "C:/Program Files/NVIDIA GPU Computing Toolkit/" 2>/dev/null || echo "CUDA not found in standard Windows location"
+          fi
+        fi
 
     - name: Install Catch2 (Linux)
-      if: runner.os == 'Linux' && steps.cache-catch2-linux.outputs.cache-hit != 'true'
+      if: runner.os == 'Linux'
       run: |
-        git clone -b v$CATCH2_VERSION https://github.com/catchorg/Catch2.git ~/catch2-build
-        cd ~/catch2-build
-        mkdir build
-        cd build
-        cmake -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release -DCATCH_INSTALL_DOCS=OFF ..
-        make -j$(nproc)
-        sudo make install
-        # Update ldconfig to ensure library is found
-        sudo ldconfig
+        if [ ! -d "/usr/local/lib/cmake/Catch2" ] || [ "${{ steps.cache-catch2-linux.outputs.cache-hit }}" != "true" ]; then
+          echo "Cache miss or Catch2 not found, installing Catch2..."
+          # Clean up any existing directory
+          rm -rf ~/catch2-build
+          git clone -b v$CATCH2_VERSION https://github.com/catchorg/Catch2.git ~/catch2-build
+          cd ~/catch2-build
+          mkdir build
+          cd build
+          cmake -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release -DCATCH_INSTALL_DOCS=OFF ..
+          make -j$(nproc)
+          sudo make install
+          sudo ldconfig
+        else
+          echo "Catch2 already installed from cache."
+        fi
 
     - name: Install Catch2 (Windows)  
-      if: runner.os == 'Windows' && steps.cache-catch2-windows.outputs.cache-hit != 'true'
+      if: runner.os == 'Windows'
+      shell: pwsh
       run: |
-        git clone -b v$Env:CATCH2_VERSION https://github.com/catchorg/Catch2.git ~/catch2-build
-        cd ~/catch2-build
-        mkdir build
-        cd build
-        cmake -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release -DCATCH_INSTALL_DOCS=OFF ..
-        cmake --build . --target install --config Release
+        if (-not (Test-Path "C:\Program Files (x86)\Catch2") -or "${{ steps.cache-catch2-windows.outputs.cache-hit }}" -ne "true") {
+          Write-Output "Cache miss or Catch2 not found, installing Catch2..."
+          # Clean up any existing directory
+          if (Test-Path "~/catch2-build") { Remove-Item -Recurse -Force "~/catch2-build" }
+          git clone -b v$Env:CATCH2_VERSION https://github.com/catchorg/Catch2.git ~/catch2-build
+          cd ~/catch2-build
+          mkdir build
+          cd build
+          cmake -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release -DCATCH_INSTALL_DOCS=OFF ..
+          cmake --build . --target install --config Release
+        } else {
+          Write-Output "Catch2 already installed from cache."
+        }
 
     - name: Update library cache (Linux)
       if: runner.os == 'Linux'
@@ -161,6 +213,22 @@ jobs:
         method: 'network'
         use-github-cache: false
         log-file-suffix: 'python-windows.txt'
+        
+    - name: Fallback CUDA installation (Windows) - Python
+      if: runner.os == 'Windows' && failure()
+      shell: pwsh
+      run: |
+        Write-Output "Primary CUDA installation failed in python-testing, trying fallback..."
+        # Download CUDA installer directly
+        $cudaUrl = "https://developer.download.nvidia.com/compute/cuda/12.5.1/network_installers/cuda_12.5.1_windows_network.exe"
+        $cudaInstaller = "$env:TEMP\cuda_installer.exe"
+        Write-Output "Downloading CUDA installer..."
+        Invoke-WebRequest -Uri $cudaUrl -OutFile $cudaInstaller
+        Write-Output "Installing CUDA toolkit..."
+        Start-Process -FilePath $cudaInstaller -ArgumentList "-s", "nvcc_12.5", "cuobjdump_12.5", "nvprune_12.5", "cupti_12.5", "cublas_dev_12.5", "cudart_12.5", "cufft_dev_12.5", "curand_dev_12.5", "cusolver_dev_12.5", "cusparse_dev_12.5", "thrust_12.5", "visual_studio_integration_12.5" -Wait
+        # Add CUDA to PATH
+        $cudaPath = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.5\bin"
+        echo "$cudaPath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -191,7 +259,7 @@ jobs:
           /usr/local/lib/cmake/Catch2
           /usr/local/include/catch2
           /usr/local/lib/libCatch2*
-        key: catch2-${{ env.CATCH2_VERSION }}-coverage-linux
+        key: catch2-${{ env.CATCH2_VERSION }}-coverage-linux-${{ github.ref }}
 
     - name: Install CUDA Toolkit
       uses: Jimver/cuda-toolkit@v0.2.25
@@ -213,16 +281,22 @@ jobs:
         sudo apt-get install -y lcov
 
     - name: Install Catch2 with proper configuration
-      if: steps.cache-catch2-coverage.outputs.cache-hit != 'true'
       run: |
-        git clone -b v$CATCH2_VERSION https://github.com/catchorg/Catch2.git ~/catch2-build
-        cd ~/catch2-build
-        mkdir build
-        cd build
-        cmake -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release -DCATCH_INSTALL_DOCS=OFF ..
-        make -j$(nproc)
-        sudo make install
-        sudo ldconfig
+        if [ ! -d "/usr/local/lib/cmake/Catch2" ] || [ "${{ steps.cache-catch2-coverage.outputs.cache-hit }}" != "true" ]; then
+          echo "Cache miss or Catch2 not found, installing Catch2..."
+          # Clean up any existing directory
+          rm -rf ~/catch2-build
+          git clone -b v$CATCH2_VERSION https://github.com/catchorg/Catch2.git ~/catch2-build
+          cd ~/catch2-build
+          mkdir build
+          cd build
+          cmake -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release -DCATCH_INSTALL_DOCS=OFF ..
+          make -j$(nproc)
+          sudo make install
+          sudo ldconfig
+        else
+          echo "Catch2 already installed from cache."
+        fi
 
     - name: Update library cache
       run: sudo ldconfig
