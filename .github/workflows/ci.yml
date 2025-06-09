@@ -184,9 +184,87 @@ jobs:
             if (Test-Path $altPath) {
               Write-Output "Found CUDA at alternative path: $altPath"
               echo "CUDA_PATH=$altPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+              echo "CUDA_ROOT=$altPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+              echo "CUDA_HOME=$altPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+              echo "CUDA_TOOLKIT_ROOT_DIR=$altPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+              
+              # Set include and lib paths for alternative location
+              $altIncludePath = "$altPath\include"
+              $altLibPath = "$altPath\lib\x64"
+              if (Test-Path $altIncludePath) {
+                echo "CUDA_INCLUDE_DIRS=$altIncludePath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+              }
+              if (Test-Path $altLibPath) {
+                echo "CUDA_LIBRARIES=$altLibPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+              }
               break
             }
           }
+        }
+        
+        # Also try to find CUDA installation by searching the filesystem
+        Write-Output "Searching for CUDA installations on the system..."
+        $possibleCudaPaths = @()
+        if (Test-Path "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA") {
+          $possibleCudaPaths += Get-ChildItem "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA" -Directory | ForEach-Object { $_.FullName }
+        }
+        
+        if ($possibleCudaPaths.Count -gt 0) {
+          Write-Output "Found CUDA installations at:"
+          $possibleCudaPaths | ForEach-Object { Write-Output "  $_" }
+          
+          # Use the first available CUDA installation if our primary path wasn't found
+          if (-not (Test-Path "$env:CUDA_PATH\include\cuda_runtime.h") -and $possibleCudaPaths.Count -gt 0) {
+            $firstCudaPath = $possibleCudaPaths[0]
+            Write-Output "Using CUDA installation: $firstCudaPath"
+            echo "CUDA_PATH=$firstCudaPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            echo "CUDA_ROOT=$firstCudaPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            echo "CUDA_HOME=$firstCudaPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            echo "CUDA_TOOLKIT_ROOT_DIR=$firstCudaPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          }
+        } else {
+          Write-Warning "No CUDA installations found in standard locations"
+        }
+
+    - name: Verify CUDA environment (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        Write-Output "=== CUDA Environment Verification ==="
+        Write-Output "CUDA_PATH: $env:CUDA_PATH"
+        Write-Output "CUDA_ROOT: $env:CUDA_ROOT"
+        Write-Output "CUDA_HOME: $env:CUDA_HOME"
+        Write-Output "CUDA_TOOLKIT_ROOT_DIR: $env:CUDA_TOOLKIT_ROOT_DIR"
+        Write-Output "CUDA_INCLUDE_DIRS: $env:CUDA_INCLUDE_DIRS"
+        Write-Output "CUDA_LIBRARIES: $env:CUDA_LIBRARIES"
+        
+        Write-Output "`n=== PATH Contents ==="
+        $env:PATH -split ';' | Where-Object { $_ -like '*cuda*' -or $_ -like '*CUDA*' } | ForEach-Object { Write-Output "  $_" }
+        
+        Write-Output "`n=== CUDA File System Check ==="
+        if ($env:CUDA_PATH) {
+          $cudaInclude = "$env:CUDA_PATH\include"
+          if (Test-Path $cudaInclude) {
+            Write-Output "CUDA include directory exists: $cudaInclude"
+            if (Test-Path "$cudaInclude\cuda_runtime.h") {
+              Write-Output "✓ cuda_runtime.h found"
+            } else {
+              Write-Output "✗ cuda_runtime.h NOT found"
+              Write-Output "Include directory contents:"
+              Get-ChildItem $cudaInclude -Name | Select-Object -First 10 | ForEach-Object { Write-Output "  $_" }
+            }
+          } else {
+            Write-Output "✗ CUDA include directory does not exist: $cudaInclude"
+          }
+          
+          $cudaLib = "$env:CUDA_PATH\lib\x64"
+          if (Test-Path $cudaLib) {
+            Write-Output "✓ CUDA library directory exists: $cudaLib"
+          } else {
+            Write-Output "✗ CUDA library directory does not exist: $cudaLib"
+          }
+        } else {
+          Write-Output "✗ CUDA_PATH not set"
         }
 
     - name: Install Catch2 (Linux)
@@ -260,14 +338,35 @@ jobs:
       shell: bash
       working-directory: ${{ github.workspace }}/build
       run: |
-        # Configure CMake with CUDA paths for Windows
-        cmake $GITHUB_WORKSPACE \
+        # Configure CMake with explicit CUDA paths for Windows
+        echo "Configuring CMake with CUDA support..."
+        echo "CUDA_PATH: $CUDA_PATH"
+        echo "CUDA_TOOLKIT_ROOT_DIR: $CUDA_TOOLKIT_ROOT_DIR"
+        
+        # Convert Windows paths to CMake-compatible format
+        CUDA_PATH_CMAKE=$(echo "$CUDA_PATH" | sed 's|\\|/|g')
+        CUDA_INCLUDE_CMAKE=$(echo "$CUDA_PATH/include" | sed 's|\\|/|g')
+        CUDA_LIB_CMAKE=$(echo "$CUDA_PATH/lib/x64" | sed 's|\\|/|g')
+        
+        echo "Converted paths:"
+        echo "CUDA_PATH_CMAKE: $CUDA_PATH_CMAKE"
+        echo "CUDA_INCLUDE_CMAKE: $CUDA_INCLUDE_CMAKE"
+        echo "CUDA_LIB_CMAKE: $CUDA_LIB_CMAKE"
+        
+        # Configure with explicit CUDA paths
+        cmake "$GITHUB_WORKSPACE" \
           -DCMAKE_BUILD_TYPE=Debug \
           -DBUILD_DOCS=OFF \
           -DBUILD_TESTING=ON \
-          -DCUDA_TOOLKIT_ROOT_DIR="$CUDA_PATH" \
-          -DCMAKE_PREFIX_PATH="$CUDA_PATH" \
-          -DCUDA_SDK_ROOT_DIR="$CUDA_PATH"
+          -DCUDA_TOOLKIT_ROOT_DIR="$CUDA_PATH_CMAKE" \
+          -DCUDAToolkit_ROOT="$CUDA_PATH_CMAKE" \
+          -DCUDA_SDK_ROOT_DIR="$CUDA_PATH_CMAKE" \
+          -DCUDA_INCLUDE_DIRS="$CUDA_INCLUDE_CMAKE" \
+          -DCUDA_LIBRARIES="$CUDA_LIB_CMAKE" \
+          -DCMAKE_PREFIX_PATH="$CUDA_PATH_CMAKE" \
+          -DCMAKE_CUDA_COMPILER="$CUDA_PATH_CMAKE/bin/nvcc.exe" \
+          -DCUDA_NVCC_EXECUTABLE="$CUDA_PATH_CMAKE/bin/nvcc.exe" \
+          -DCMAKE_VERBOSE_MAKEFILE=ON
 
     - name: build
       shell: bash
