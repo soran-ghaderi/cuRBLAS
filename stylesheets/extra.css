@@ -1,0 +1,134 @@
+:root {
+  --md-primary-fg-color: #1976d2;
+  --md-primary-fg-color--light: #42a5f5;
+  --md-primary-fg-color--dark: #1565c0;
+  --md-accent-fg-color: #2196f3;
+}
+
+/* Enhanced cards styling */
+.grid.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1rem;
+  margin: 2rem 0;
+}
+
+.grid.cards > div {
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  transition: box-shadow 0.3s, transform 0.3s;
+}
+
+.grid.cards > div:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+/* Code block enhancements */
+.highlight {
+  border-radius: 0.5rem;
+  margin: 1rem 0;
+}
+
+.highlight pre {
+  padding: 1rem;
+}
+
+/* API documentation specific styles */
+.api-item {
+  margin: 2rem 0;
+  padding: 1rem;
+  border-left: 4px solid var(--md-accent-fg-color);
+  background: var(--md-code-bg-color);
+}
+
+.api-signature {
+  font-family: var(--md-code-font);
+  font-size: 0.9rem;
+  background: var(--md-primary-fg-color--light);
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 0.25rem;
+  margin-bottom: 1rem;
+}
+
+/* Performance metrics styling */
+.perf-metric {
+  text-align: center;
+  padding: 1rem;
+  margin: 0.5rem;
+  background: linear-gradient(135deg, var(--md-primary-fg-color--light), var(--md-accent-fg-color));
+  color: white;
+  border-radius: 0.5rem;
+}
+
+.perf-metric .number {
+  font-size: 2rem;
+  font-weight: bold;
+  display: block;
+}
+
+.perf-metric .label {
+  font-size: 0.9rem;
+  opacity: 0.9;
+}
+
+/* Enhanced admonitions */
+.admonition {
+  border-radius: 0.5rem;
+  margin: 1.5rem 0;
+}
+
+.admonition.info {
+  border-left: 4px solid #2196f3;
+}
+
+.admonition.warning {
+  border-left: 4px solid #ff9800;
+}
+
+.admonition.danger {
+  border-left: 4px solid #f44336;
+}
+
+/* Navigation enhancements */
+.md-nav__link--active {
+  color: var(--md-primary-fg-color);
+  font-weight: 500;
+}
+
+/* Footer customization */
+.md-footer {
+  background: linear-gradient(135deg, var(--md-primary-fg-color), var(--md-primary-fg-color--dark));
+}
+
+/* Table styling */
+table {
+  border-radius: 0.5rem;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Button enhancements */
+.md-button {
+  border-radius: 2rem;
+  padding: 0.5rem 1.5rem;
+  transition: all 0.3s;
+}
+
+.md-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* Responsive grid */
+@media screen and (max-width: 768px) {
+  .grid.cards {
+    grid-template-columns: 1fr;
+  }
+  
+  .perf-metric .number {
+    font-size: 1.5rem;
+  }
+} 
