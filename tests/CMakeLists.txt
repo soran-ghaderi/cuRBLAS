@@ -2,11 +2,20 @@ add_executable(tests
     tests.cpp 
 )
 
-target_link_libraries(tests PUBLIC 
+target_link_libraries(tests PRIVATE 
     cuRBLAS 
     Catch2::Catch2WithMain
-    CUDA::cudart
 )
 
-# allow user to run tests with `make test` or `ctest`
-catch_discover_tests(tests)
+# Link CUDA libraries only if available
+if(CUDA_FOUND)
+    target_link_libraries(tests PRIVATE CUDA::cudart)
+endif()
+
+# Add test to CTest - simple and reliable approach
+add_test(NAME cuRBLAS_tests COMMAND tests)
+
+# If Catch2 discovery is available, use it for better test reporting
+if(COMMAND catch_discover_tests)
+    catch_discover_tests(tests)
+endif()

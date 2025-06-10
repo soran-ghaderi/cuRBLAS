@@ -1,0 +1,61 @@
+name: Update Changelog
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  update-changelog:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Update Changelog
+      run: |
+        # Get the latest release info
+        RELEASE_TAG="${{ github.event.release.tag_name }}"
+        RELEASE_NAME="${{ github.event.release.name }}"
+        RELEASE_BODY="${{ github.event.release.body }}"
+        RELEASE_URL="${{ github.event.release.html_url }}"
+        RELEASE_DATE=$(date -u +"%Y-%m-%d")
+        
+        # Create the changelog entry
+        CHANGELOG_ENTRY="
+        ## [${RELEASE_TAG}](${RELEASE_URL}) - ${RELEASE_DATE}
+        
+        ${RELEASE_BODY}
+        
+        "
+        
+        # Check if CHANGELOG.md exists, if not create it
+        if [ ! -f "CHANGELOG.md" ]; then
+          echo "# Changelog" > CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          echo "All notable changes to this project will be documented in this file." >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
+        fi
+        
+        # Add the new entry to the top of the changelog
+        {
+          head -n 4 CHANGELOG.md
+          echo "$CHANGELOG_ENTRY"
+          tail -n +5 CHANGELOG.md
+        } > CHANGELOG.md.tmp
+        
+        mv CHANGELOG.md.tmp CHANGELOG.md
+
+    - name: Commit changelog
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        git add CHANGELOG.md
+        git commit -m "Update changelog for ${{ github.event.release.tag_name }}" || exit 0
+        git push origin main 

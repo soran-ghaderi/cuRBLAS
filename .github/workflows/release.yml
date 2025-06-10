@@ -1,0 +1,128 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_type:
+        description: 'Version bump type'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor  
+          - major
+      prerelease:
+        description: 'Create as prerelease'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install bump2version
+
+    - name: Configure git
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+    - name: Get current version
+      id: current_version
+      run: |
+        CURRENT_VERSION=$(python -c "import toml; print(toml.load('pyproject.toml')['project']['version'])")
+        echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+
+    - name: Bump version
+      id: bump_version
+      run: |
+        bump2version ${{ github.event.inputs.version_type }} --verbose
+        NEW_VERSION=$(python -c "import toml; print(toml.load('pyproject.toml')['project']['version'])")
+        echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+        echo "tag_name=v$NEW_VERSION" >> $GITHUB_OUTPUT
+
+    - name: Push changes
+      run: |
+        git push origin main
+        git push origin --tags
+
+    - name: Generate changelog
+      id: changelog
+      run: |
+        # Get the latest two tags
+        PREVIOUS_TAG=$(git tag --sort=-version:refname | head -2 | tail -1 || echo "")
+        CURRENT_TAG=v${{ steps.bump_version.outputs.new_version }}
+        
+        # Generate changelog
+        if [ -n "$PREVIOUS_TAG" ]; then
+          CHANGELOG=$(git log --pretty=format:"- %s (%h)" ${PREVIOUS_TAG}..HEAD | head -20)
+        else
+          CHANGELOG=$(git log --pretty=format:"- %s (%h)" | head -20)
+        fi
+        
+        # Save changelog to file and output
+        echo "$CHANGELOG" > changelog.txt
+        echo "changelog<<EOF" >> $GITHUB_OUTPUT
+        echo "$CHANGELOG" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
+    - name: Create Release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.bump_version.outputs.tag_name }}
+        release_name: Release ${{ steps.bump_version.outputs.tag_name }}
+        body: |
+          ## Changes in v${{ steps.bump_version.outputs.new_version }}
+          
+          ${{ steps.changelog.outputs.changelog }}
+          
+          **Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ steps.current_version.outputs.current_version }}...${{ steps.bump_version.outputs.tag_name }}
+        draft: false
+        prerelease: ${{ github.event.inputs.prerelease }}
+
+  trigger-workflows:
+    needs: release
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Trigger PyPI workflow
+      uses: actions/github-script@v7
+      with:
+        script: |
+          await github.rest.actions.createWorkflowDispatch({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            workflow_id: 'pypi.yml'
+          })
+
+    - name: Trigger Documentation workflow
+      uses: actions/github-script@v7
+      with:
+        script: |
+          await github.rest.actions.createWorkflowDispatch({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            workflow_id: 'docs.yml'
+          }) 

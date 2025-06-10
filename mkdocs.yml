@@ -1,0 +1,175 @@
+site_name: cuRBLAS Documentation
+site_url: https://curblas.github.io/
+site_author: cuRBLAS Team
+site_description: >-
+  CUDA Randomized BLAS Library - High-performance randomized linear algebra operations on NVIDIA GPUs
+
+repo_name: cuRBLAS/cuRBLAS
+repo_url: https://github.com/cuRBLAS/cuRBLAS
+edit_uri: edit/main/docs/
+
+copyright: Copyright &copy; 2024 cuRBLAS Team
+
+theme:
+  name: material
+  palette:
+    # Palette toggle for automatic mode
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+
+    # Palette toggle for light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+
+    # Palette toggle for dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to system preference
+
+  features:
+    - announce.dismiss
+    - content.action.edit
+    - content.action.view
+    - content.code.annotate
+    - content.code.copy
+    - content.code.select
+    - content.tabs.link
+    - content.tooltips
+    - header.autohide
+    - navigation.expand
+    - navigation.footer
+    - navigation.indexes
+    - navigation.instant
+    - navigation.instant.prefetch
+    - navigation.instant.progress
+    - navigation.prune
+    - navigation.sections
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.top
+    - navigation.tracking
+    - search.highlight
+    - search.share
+    - search.suggest
+    - toc.follow
+
+  icon:
+    repo: fontawesome/brands/github
+    edit: material/pencil
+    view: material/eye
+
+extra:
+  annotate:
+    json: [.s2]
+  version:
+    provider: mike
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/cuRBLAS/cuRBLAS
+      name: GitHub Repository
+    - icon: fontawesome/solid/paper-plane
+      link: mailto:contact@curblas.org
+      name: Contact Us
+
+extra_css:
+  - stylesheets/extra.css
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - toc:
+      permalink: true
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.magiclink:
+      normalize_issue_symbols: true
+      repo_url_shorthand: true
+      user: cuRBLAS
+      repo: cuRBLAS
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.snippets:
+      auto_append:
+        - includes/mkdocs.md
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+      combine_header_slug: true
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
+plugins:
+  - search:
+      separator: '[\s\u200b\-_,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
+  - awesome-pages
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Installation: getting-started/installation.md
+      - Quick Start: getting-started/quick-start.md
+      - Building from Source: getting-started/building.md
+  - User Guide:
+      - Overview: guide/overview.md
+      - Context Management: guide/context.md
+      - Matrix Operations: guide/operations.md
+      - Sketching Methods: guide/sketching.md
+      - Performance Tips: guide/performance.md
+  - API Reference:
+      - Overview: api/index.md
+      - Curblas: api/curblas.md
+      - Curblascontext: api/curblascontext.md
+  - Examples:
+      - Basic Usage: examples/basic.md
+      - Matrix Multiplication: examples/gemm.md
+      - SVD: examples/svd.md
+      - Performance Benchmarks: examples/benchmarks.md
+  - Development:
+      - Contributing: development/contributing.md
+      - Building Documentation: development/documentation.md
+      - Testing: development/testing.md
+  - About:
+      - License: about/license.md
+      - Changelog: about/changelog.md
+      - Roadmap: about/roadmap.md 

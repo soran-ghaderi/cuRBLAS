@@ -33,7 +33,7 @@ Traditional linear algebra operations can be computationally expensive for large
 - CUDA stream support (`curblasSetStream`, `curblasGetStream`)
 - Configuration management (accuracy levels, sketch types, random seeding)
 - Comprehensive error handling and status reporting
-- Random number generation with cuRAND integration
+- Custom random number generation optimized for CUDA devices
 - Version information system
 
 ✅ **Configuration API**
@@ -73,8 +73,9 @@ Building cuRBLAS requires:
 
 * **C++17-compliant compiler** (GCC 7+, Clang 5+, MSVC 2017+)
 * **CMake** `>= 3.9`
-* **CUDA Toolkit** `>= 11.0`
-* **cuRAND** (included with CUDA Toolkit)
+* **CUDA Toolkit** (version 11.0 or later) - for GPU acceleration
+* **cuBLAS** (included with CUDA Toolkit) - for basic linear algebra operations
+* **Random number generation** - custom implementation for sketching algorithms
 * **Catch2** testing framework (for building tests)
 * **Python** `>= 3.8` (for Python bindings)
 * **Doxygen** (optional, for documentation)
@@ -270,3 +271,14 @@ If you use cuRBLAS in your research, please cite:
 ---
 
 **Status**: 🚧 Active Development - Early Alpha Release
+
+## New Features
+
+- **High-performance sketching algorithms** for randomized linear algebra
+- **Memory-efficient implementations** that minimize GPU memory usage
+- **Streaming support** for out-of-core computations
+- **Comprehensive error handling** with meaningful error messages
+- **Custom random number generation** optimized for CUDA devices
+- **Python bindings** with numpy integration
+- **Extensive testing** with unit tests and benchmarks
+- **Cross-platform support** (Linux, Windows, macOS)
