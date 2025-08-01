@@ -18,12 +18,14 @@ namespace cuRBLAS {
         __syncthreads();
 
         for (int s = blockDim.x / 2; s > 0; s >>= 1) {
-            sharedData[tid] += sharedData[tid + s];
+            if (tid < s) { // this solved the problem of output=0. To avoid accessing out of bounds (the shared memory array size)!
+                sharedData[tid] += sharedData[tid + s];
+            }
             __syncthreads();
         }
 
         if (tid == 0) {
-            output[threadIdx.x] = sharedData[0];
+            output[blockIdx.x] = sharedData[0];
         }
     }
 
