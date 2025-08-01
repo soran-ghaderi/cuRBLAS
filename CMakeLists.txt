@@ -69,6 +69,7 @@ option(BUILD_DOCS "Enable building of documentation" ON)
 if(CUDA_FOUND)
     find_package(CUDAToolkit REQUIRED)
 endif()
+find_package(Threads REQUIRED)
 
 # compile the library
 add_subdirectory(src)
@@ -157,6 +158,17 @@ install(
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
+#include_directories(${CUDA_INCLUDE_DIRS})
+#target_include_directories(cuRBLAS
+#        PUBLIC
+#        ${CMAKE_CURRENT_SOURCE_DIR}/include
+#        ${CUDA_INCLUDE_DIRS}
+#)
+#target_link_libraries(cuRBLAS
+#        PUBLIC
+#        ${CUDA_LIBRARIES}
+#)
+#include_directories(/usr/local/cuda/include)
 # This prints a summary of found dependencies
 include(FeatureSummary)
 feature_summary(WHAT ALL)
