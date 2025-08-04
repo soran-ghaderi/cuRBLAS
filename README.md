@@ -87,7 +87,7 @@ Building cuRBLAS requires:
 ```bash
 # Clone the repo
 git clone https://github.com/soran-ghaderi/cuRBLAS.git
-cd cuRBLAS
+cd curblas
 
 # Create build directory
 mkdir build && cd build
@@ -124,7 +124,7 @@ pip install .
 Or install directly from PyPI (when available):
 
 ```bash
-pip install cuRBLAS
+pip install curblas
 ```
 
 ## Usage Example
@@ -132,11 +132,11 @@ pip install cuRBLAS
 ```c
 #include <cuRBLAS/curblas.h>
 
-// Create cuRBLAS context
+// Create curblas context
 curblasHandle_t handle;
 curblasStatus_t status = curblasCreate(&handle);
 if (status != CURBLAS_STATUS_SUCCESS) {
-    printf("Failed to create cuRBLAS handle: %s\n", 
+    printf("Failed to create curblas handle: %s\n", 
            curblasGetStatusString(status));
     return -1;
 }
@@ -153,7 +153,7 @@ curblasSetSketchType(handle, CURBLAS_SKETCH_GAUSSIAN);
 // Get version information
 int version;
 curblasGetVersion(handle, &version);
-printf("cuRBLAS Version: %d\n", version);
+printf("curblas Version: %d\n", version);
 
 // Note: Matrix operations like curblasRgemm are declared 
 // in headers but not yet implemented
@@ -237,7 +237,7 @@ We welcome contributions! Please see our [contribution guidelines](CONTRIBUTING.
 
 ```bash
 git clone https://github.com/soran-ghaderi/cuRBLAS.git
-cd cuRBLAS
+cd curblas
 pip install -r requirements-dev.txt
 ```
 

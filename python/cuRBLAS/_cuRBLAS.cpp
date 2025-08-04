@@ -9,8 +9,8 @@ namespace cuRBLAS {
 
 PYBIND11_MODULE(_cuRBLAS, m)
 {
-  m.doc() = "Python Bindings for cuRBLAS";
+  m.doc() = "Python Bindings for curblas";
   m.def("add_one", &add_one, "Increments an integer value");
 }
 
-} // namespace cuRBLAS
+} // namespace curblas

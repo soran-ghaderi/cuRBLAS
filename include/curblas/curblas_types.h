@@ -9,7 +9,7 @@ extern "C" {
 #endif
 
 /*
- * cuRBLAS Handle and Status Types
+ * curblas Handle and Status Types
  */
 struct curblasContext;
 typedef struct curblasContext* curblasHandle_t;
@@ -38,7 +38,7 @@ typedef enum {
 } curblasOperation_t;
 
 /*
- * Sketching Method Types - Core of cuRBLAS
+ * Sketching Method Types - Core of curblas
  */
 typedef enum {
     CURBLAS_SKETCH_GAUSSIAN     = 0,  // Gaussian random projections
@@ -166,7 +166,7 @@ typedef void (*curblasLogCallback_t)(int logLevel, const char* functionName, con
  */
 #define CURBLAS_VERSION_MAJOR 0
 #define CURBLAS_VERSION_MINOR 1
-#define CURBLAS_VERSION_PATCH 0
+#define CURBLAS_VERSION_PATCH 1
 
 #ifdef __cplusplus
 }

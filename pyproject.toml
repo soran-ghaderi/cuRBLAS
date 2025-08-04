@@ -10,7 +10,7 @@ build-backend = "scikit_build_core.build"
 
 # This section provides general project metadata that is used across
 # a variety of build tools. Notably, the version specified here is the
-# single source of truth for cuRBLAS's version
+# single source of truth for curblas's version
 [project]
 name = "cuRBLAS"
 version = "0.0.1"

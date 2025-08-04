@@ -11,15 +11,15 @@ if(CMAKE_CUDA_COMPILER)
     enable_language(CUDA)
     set(CUDA_FOUND TRUE)
     message(STATUS "CUDA found and enabled")
-    
+
     # Set CUDA architectures - this fixes the CMAKE_CUDA_ARCHITECTURES error
     # Supporting common GPU architectures: Pascal, Volta, Turing, Ampere, Ada Lovelace
     set(CMAKE_CUDA_ARCHITECTURES "60;61;70;75;80;86;89;90" CACHE STRING "CUDA architectures")
-    
+
     # Define CUDA standard
     set(CMAKE_CUDA_STANDARD 17)
     set(CMAKE_CUDA_STANDARD_REQUIRED ON)
-    
+
     # CUDA specific settings
     set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
     set(CMAKE_CUDA_RESOLVE_DEVICE_SYMBOLS ON)
@@ -50,14 +50,14 @@ if(WIN32 AND MSVC)
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MD")
     set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} /MD")
     set(CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL} /MD")
-    
+
     # Ensure consistent iterator debug levels
     # Use level 2 for Debug builds and level 0 for Release builds
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /D_ITERATOR_DEBUG_LEVEL=2")
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /D_ITERATOR_DEBUG_LEVEL=0")
     set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} /D_ITERATOR_DEBUG_LEVEL=0")
     set(CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL} /D_ITERATOR_DEBUG_LEVEL=0")
-    
+
     message(STATUS "Windows MSVC runtime library flags configured for consistent linking")
 endif()
 
@@ -82,27 +82,27 @@ add_subdirectory(app)
 include(CTest)
 if(BUILD_TESTING)
   find_package(Catch2 3 REQUIRED)
-  
+
   # Try to include Catch2 discovery functions if available
   if(TARGET Catch2::Catch2WithMain)
     # Look for the Catch2 CMake module in common locations
-    find_file(CATCH2_CMAKE_MODULE 
-      NAMES Catch2.cmake 
-      PATHS 
+    find_file(CATCH2_CMAKE_MODULE
+      NAMES Catch2.cmake
+      PATHS
         ${Catch2_DIR}
         ${Catch2_DIR}/../../../lib/cmake/Catch2
         /usr/local/lib/cmake/Catch2
         /usr/lib/cmake/Catch2
       NO_DEFAULT_PATH
     )
-    
+
     if(CATCH2_CMAKE_MODULE)
       include(${CATCH2_CMAKE_MODULE})
     else()
       message(STATUS "Catch2 discovery module not found, using basic test registration")
     endif()
   endif()
-  
+
   add_subdirectory(tests)
 endif()
 
@@ -159,12 +159,12 @@ install(
 )
 
 #include_directories(${CUDA_INCLUDE_DIRS})
-#target_include_directories(cuRBLAS
+#target_include_directories(curblas
 #        PUBLIC
 #        ${CMAKE_CURRENT_SOURCE_DIR}/include
 #        ${CUDA_INCLUDE_DIRS}
 #)
-#target_link_libraries(cuRBLAS
+#target_link_libraries(curblas
 #        PUBLIC
 #        ${CUDA_LIBRARIES}
 #)
