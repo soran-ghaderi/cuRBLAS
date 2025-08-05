@@ -229,456 +229,456 @@ jobs:
           
           # Create MSBuild properties file
           @"
-  <?xml version="1.0" encoding="utf-8"?>
-  <Project>
-  <PropertyGroup>
-  <CudaToolkitDir>$env:CUDA_PATH</CudaToolkitDir>
-  <CUDA_PATH>$env:CUDA_PATH</CUDA_PATH>
-  <CudaVersion>${{ env.CUDA_VERSION_SHORT }}</CudaVersion>
-  </PropertyGroup>
-  </Project>
-  "@ | Out-File -FilePath $buildPropsPath -Encoding UTF8
-          
+        #  <?xml version="1.0" encoding="utf-8"?>
+        #  <Project>
+        #  <PropertyGroup>
+        #  <CudaToolkitDir>$env:CUDA_PATH</CudaToolkitDir>
+        #  <CUDA_PATH>$env:CUDA_PATH</CUDA_PATH>
+        #  <CudaVersion>${{ env.CUDA_VERSION_SHORT }}</CudaVersion>
+        #  </PropertyGroup>
+        #  </Project>
+        #  "@ | Out-File -FilePath $buildPropsPath -Encoding UTF8
+        #
           if (Test-Path $buildPropsPath) {
             Write-Output "✓ MSBuild properties file created successfully"
-  Write-Output "File contents:"
-  Get-Content $buildPropsPath
-  } else {
-  Write-Error "✗ Failed to create MSBuild properties file"
-  exit 1
-  }
-
-- name: Install Catch2 (Linux)
-  if: runner.os == 'Linux'
-  run: |
-    if [ ! -d "/usr/local/lib/cmake/Catch2" ] || [ "${{ steps.cache-catch2-linux.outputs.cache-hit }}" != "true" ]; then
-      echo "Cache miss or Catch2 not found, installing Catch2..."
-      # Clean up any existing directory
-      rm -rf ~/catch2-build
-      git clone -b v$CATCH2_VERSION https://github.com/catchorg/Catch2.git ~/catch2-build
-      cd ~/catch2-build
-      mkdir build
-      cd build
-      cmake -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release -DCATCH_INSTALL_DOCS=OFF ..
-      make -j$(nproc)
-      sudo make install
-      sudo ldconfig
-    else
-      echo "Catch2 already installed from cache."
-    fi
-
-- name: Install Catch2 (Windows)
-  if: runner.os == 'Windows'
-  shell: pwsh
-  run: |
-    if (-not (Test-Path "C:\Program Files (x86)\Catch2") -or "${{ steps.cache-catch2-windows.outputs.cache-hit }}" -ne "true") {
-      Write-Output "Cache miss or Catch2 not found, installing Catch2..."
-      # Clean up any existing directory
-      if (Test-Path "~/catch2-build") { Remove-Item -Recurse -Force "~/catch2-build" }
-    
-      $catch2Dir = Resolve-Path ~ | Join-Path -ChildPath "catch2-build"
-      Write-Output "Creating directory: $catch2Dir"
-      New-Item -ItemType Directory -Force -Path $catch2Dir | Out-Null
-    
-      # Clone Catch2
-      Write-Output "Cloning Catch2 v$Env:CATCH2_VERSION..."
-      git clone -b v$Env:CATCH2_VERSION https://github.com/catchorg/Catch2.git $catch2Dir
-    
-      Set-Location $catch2Dir
-      New-Item -ItemType Directory -Name "build" -Force | Out-Null
-      Set-Location build
-    
-      # Build Catch2 in Debug mode
-      cmake -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Debug -DCATCH_INSTALL_DOCS=OFF ..
-      cmake --build . --target install --config Debug
-    } else {
-      Write-Output "Catch2 already installed from cache."
-    }
-
-- name: Update library cache (Linux)
-  if: runner.os == 'Linux'
-  run: sudo ldconfig
-
-- name: make build directory
-  run: cmake -E make_directory ${{ github.workspace }}/build
-
-- name: configure cmake (Linux)
-  if: runner.os == 'Linux'
-  shell: bash
-  working-directory: ${{ github.workspace }}/build
-  run: |
-    cmake $GITHUB_WORKSPACE \
-      -DCMAKE_BUILD_TYPE=Debug \
-      -DBUILD_DOCS=OFF \
-      -DBUILD_TESTING=ON \
-      -DCMAKE_PREFIX_PATH="/usr/local"
-
-- name: configure cmake (Windows)
-  if: runner.os == 'Windows'
-  shell: bash
-  working-directory: ${{ github.workspace }}/build
-  env:
-    CUDA_PATH: ${{ env.CUDA_PATH }}
-    CudaToolkitDir: ${{ env.CUDA_PATH }}
-  run: |
-    echo "=== Configuring CMake with CUDA support ==="
-    echo "CUDA_PATH: $CUDA_PATH"
-    
-    # Convert Windows paths to CMake-compatible format
-    CUDA_PATH_CMAKE=$(echo "$CUDA_PATH" | sed 's|\\|/|g')
-    CUDA_INCLUDE_CMAKE=$(echo "$CUDA_PATH/include" | sed 's|\\|/|g')
-    CUDA_LIB_CMAKE=$(echo "$CUDA_PATH/lib/x64" | sed 's|\\|/|g')
-    
-    echo "Converted paths:"
-    echo "CUDA_PATH_CMAKE: $CUDA_PATH_CMAKE"
-    echo "CUDA_INCLUDE_CMAKE: $CUDA_INCLUDE_CMAKE"
-    echo "CUDA_LIB_CMAKE: $CUDA_LIB_CMAKE"
-    
-    # Configure with explicit CUDA paths
-    cmake "$GITHUB_WORKSPACE" \
-      -DCMAKE_BUILD_TYPE=Debug \
-      -DBUILD_DOCS=OFF \
-      -DBUILD_TESTING=ON \
-      -DCUDA_TOOLKIT_ROOT_DIR="$CUDA_PATH_CMAKE" \
-      -DCUDAToolkit_ROOT="$CUDA_PATH_CMAKE" \
-      -DCUDA_SDK_ROOT_DIR="$CUDA_PATH_CMAKE" \
-      -DCUDA_INCLUDE_DIRS="$CUDA_INCLUDE_CMAKE" \
-      -DCUDA_LIBRARIES="$CUDA_LIB_CMAKE" \
-      -DCMAKE_PREFIX_PATH="$CUDA_PATH_CMAKE" \
-      -DCMAKE_CUDA_COMPILER="$CUDA_PATH_CMAKE/bin/nvcc.exe" \
-      -DCUDA_NVCC_EXECUTABLE="$CUDA_PATH_CMAKE/bin/nvcc.exe" \
-      -DCMAKE_VS_PLATFORM_NAME=x64 \
-      -DCMAKE_VERBOSE_MAKEFILE=ON
-
-- name: build
-  shell: bash
-  working-directory: ${{ github.workspace }}/build
-  env:
-    CUDA_PATH: ${{ env.CUDA_PATH }}
-    CudaToolkitDir: ${{ env.CUDA_PATH }}
-  run: |
-    if [ "${{ runner.os }}" == "Windows" ]; then
-      # On Windows, Visual Studio is a multi-configuration generator and requires --config flag
-      cmake --build . --parallel --config Debug
-    else
-      # On Linux, single-configuration generator doesn't need --config flag
-      cmake --build . --parallel
-    fi
-
-- name: run tests
-  shell: bash
-  working-directory: ${{ github.workspace }}/build
-  run: |
-    if [ "${{ runner.os }}" == "Windows" ]; then
-      # On Windows, Visual Studio is a multi-configuration generator and requires -C flag
-      ctest --output-on-failure --parallel -C Debug
-    else
-      # On Linux, single-configuration generator doesn't need -C flag
-      ctest --output-on-failure --parallel
-    fi
-
-python-testing:
-  name: Python package testing on ${{matrix.os}}
-  runs-on: ${{matrix.os}}
-  timeout-minutes: 45
-  strategy:
-    matrix:
-      os: [ubuntu-latest, windows-latest]
-    fail-fast: false
-
-  steps:
-    - uses: actions/checkout@v4
-
-    - name: Install CUDA Toolkit (Linux)
-      if: runner.os == 'Linux'
-      uses: Jimver/cuda-toolkit@v0.2.25
-      id: cuda-toolkit-linux
-      with:
-        cuda: ${{ env.CUDA_VERSION }}
-        method: 'local'
-        use-github-cache: true
-        log-file-suffix: 'python-linux.txt'
-
-    - name: Install CUDA Toolkit (Windows)
-      if: runner.os == 'Windows'
-      shell: pwsh
-      run: |
-        Write-Output "Installing CUDA ${{ env.CUDA_VERSION }} for Python testing..."
-        
-        # Download CUDA installer - using the full installer to ensure all components
-        $cudaUrl = "https://developer.download.nvidia.com/compute/cuda/${{ env.CUDA_VERSION }}/local_installers/cuda_${{ env.CUDA_VERSION }}_537.58_windows.exe"
-        $cudaInstaller = "$env:TEMP\cuda_installer.exe"
-        
-        Write-Output "Downloading CUDA installer from: $cudaUrl"
-        try {
-          Invoke-WebRequest -Uri $cudaUrl -OutFile $cudaInstaller -TimeoutSec 600
-        
-          # Install CUDA with all required components for Python bindings
-          $installArgs = @(
-            "-s",
-            "nvcc_${{ env.CUDA_VERSION_SHORT }}",           # CUDA compiler
-            "cudart_${{ env.CUDA_VERSION_SHORT }}",         # CUDA runtime
-            "curand_${{ env.CUDA_VERSION_SHORT }}",         # cuRAND library
-            "curand_dev_${{ env.CUDA_VERSION_SHORT }}",     # cuRAND development files  
-            "cublas_${{ env.CUDA_VERSION_SHORT }}",         # cuBLAS library
-            "cublas_dev_${{ env.CUDA_VERSION_SHORT }}",     # cuBLAS development files
-            "cusparse_${{ env.CUDA_VERSION_SHORT }}",       # cuSPARSE library
-            "cusparse_dev_${{ env.CUDA_VERSION_SHORT }}",   # cuSPARSE development files
-            "visual_studio_integration_${{ env.CUDA_VERSION_SHORT }}"  # VS integration
-          )
-        
-          $process = Start-Process -FilePath $cudaInstaller -ArgumentList $installArgs -Wait -NoNewWindow -PassThru
-        
-          if ($process.ExitCode -eq 0) {
-            Write-Output "✓ CUDA toolkit for Python bindings installed successfully"
-        
-            # Add CUDA to PATH
-            $cudaPath = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v${{ env.CUDA_VERSION_SHORT }}\bin"
-            if (Test-Path $cudaPath) {
-              echo "$cudaPath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-            }
+            Write-Output "File contents:"
+            Get-Content $buildPropsPath
           } else {
-            Write-Warning "CUDA installation returned exit code: $($process.ExitCode)"
+            Write-Error "✗ Failed to create MSBuild properties file"
+            exit 1
+            }
+
+      - name: Install Catch2 (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          if [ ! -d "/usr/local/lib/cmake/Catch2" ] || [ "${{ steps.cache-catch2-linux.outputs.cache-hit }}" != "true" ]; then
+            echo "Cache miss or Catch2 not found, installing Catch2..."
+            # Clean up any existing directory
+            rm -rf ~/catch2-build
+            git clone -b v$CATCH2_VERSION https://github.com/catchorg/Catch2.git ~/catch2-build
+            cd ~/catch2-build
+            mkdir build
+            cd build
+            cmake -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release -DCATCH_INSTALL_DOCS=OFF ..
+            make -j$(nproc)
+            sudo make install
+            sudo ldconfig
+          else
+            echo "Catch2 already installed from cache."
+          fi
+
+      - name: Install Catch2 (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "C:\Program Files (x86)\Catch2") -or "${{ steps.cache-catch2-windows.outputs.cache-hit }}" -ne "true") {
+            Write-Output "Cache miss or Catch2 not found, installing Catch2..."
+            # Clean up any existing directory
+            if (Test-Path "~/catch2-build") { Remove-Item -Recurse -Force "~/catch2-build" }
+          
+            $catch2Dir = Resolve-Path ~ | Join-Path -ChildPath "catch2-build"
+            Write-Output "Creating directory: $catch2Dir"
+            New-Item -ItemType Directory -Force -Path $catch2Dir | Out-Null
+          
+            # Clone Catch2
+            Write-Output "Cloning Catch2 v$Env:CATCH2_VERSION..."
+            git clone -b v$Env:CATCH2_VERSION https://github.com/catchorg/Catch2.git $catch2Dir
+          
+            Set-Location $catch2Dir
+            New-Item -ItemType Directory -Name "build" -Force | Out-Null
+            Set-Location build
+          
+            # Build Catch2 in Debug mode
+            cmake -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Debug -DCATCH_INSTALL_DOCS=OFF ..
+            cmake --build . --target install --config Debug
+          } else {
+            Write-Output "Catch2 already installed from cache."
           }
-        }
-        catch {
-          Write-Error "CUDA installation failed: $_"
-          Write-Output "Continuing without CUDA installation..."
-        }
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: "3.13"
+      - name: Update library cache (Linux)
+        if: runner.os == 'Linux'
+        run: sudo ldconfig
 
-    - name: Run Python tests
-      shell: bash
-      run: |
-        python -m pip install .
-        python -m pip install -r requirements-dev.txt
-        pytest
+      - name: make build directory
+        run: cmake -E make_directory ${{ github.workspace }}/build
 
-coverage-test:
-  name: Coverage Testing
-  runs-on: ubuntu-latest
-  timeout-minutes: 90
+      - name: configure cmake (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        working-directory: ${{ github.workspace }}/build
+        run: |
+          cmake $GITHUB_WORKSPACE \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DBUILD_DOCS=OFF \
+            -DBUILD_TESTING=ON \
+            -DCMAKE_PREFIX_PATH="/usr/local"
 
-  steps:
-    - uses: actions/checkout@v4
+      - name: configure cmake (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        working-directory: ${{ github.workspace }}/build
+        env:
+          CUDA_PATH: ${{ env.CUDA_PATH }}
+          CudaToolkitDir: ${{ env.CUDA_PATH }}
+        run: |
+          echo "=== Configuring CMake with CUDA support ==="
+          echo "CUDA_PATH: $CUDA_PATH"
+          
+          # Convert Windows paths to CMake-compatible format
+          CUDA_PATH_CMAKE=$(echo "$CUDA_PATH" | sed 's|\\|/|g')
+          CUDA_INCLUDE_CMAKE=$(echo "$CUDA_PATH/include" | sed 's|\\|/|g')
+          CUDA_LIB_CMAKE=$(echo "$CUDA_PATH/lib/x64" | sed 's|\\|/|g')
+          
+          echo "Converted paths:"
+          echo "CUDA_PATH_CMAKE: $CUDA_PATH_CMAKE"
+          echo "CUDA_INCLUDE_CMAKE: $CUDA_INCLUDE_CMAKE"
+          echo "CUDA_LIB_CMAKE: $CUDA_LIB_CMAKE"
+          
+          # Configure with explicit CUDA paths
+          cmake "$GITHUB_WORKSPACE" \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DBUILD_DOCS=OFF \
+            -DBUILD_TESTING=ON \
+            -DCUDA_TOOLKIT_ROOT_DIR="$CUDA_PATH_CMAKE" \
+            -DCUDAToolkit_ROOT="$CUDA_PATH_CMAKE" \
+            -DCUDA_SDK_ROOT_DIR="$CUDA_PATH_CMAKE" \
+            -DCUDA_INCLUDE_DIRS="$CUDA_INCLUDE_CMAKE" \
+            -DCUDA_LIBRARIES="$CUDA_LIB_CMAKE" \
+            -DCMAKE_PREFIX_PATH="$CUDA_PATH_CMAKE" \
+            -DCMAKE_CUDA_COMPILER="$CUDA_PATH_CMAKE/bin/nvcc.exe" \
+            -DCUDA_NVCC_EXECUTABLE="$CUDA_PATH_CMAKE/bin/nvcc.exe" \
+            -DCMAKE_VS_PLATFORM_NAME=x64 \
+            -DCMAKE_VERBOSE_MAKEFILE=ON
 
-    - name: Cache Catch2 (Coverage)
-      uses: actions/cache@v4
-      id: cache-catch2-coverage
-      with:
-        path: |
-          ~/catch2-build
-          /usr/local/lib/cmake/Catch2
-          /usr/local/include/catch2
-          /usr/local/lib/libCatch2*
-        key: catch2-${{ env.CATCH2_VERSION }}-coverage-linux-${{ github.ref }}
+      - name: build
+        shell: bash
+        working-directory: ${{ github.workspace }}/build
+        env:
+          CUDA_PATH: ${{ env.CUDA_PATH }}
+          CudaToolkitDir: ${{ env.CUDA_PATH }}
+        run: |
+          if [ "${{ runner.os }}" == "Windows" ]; then
+            # On Windows, Visual Studio is a multi-configuration generator and requires --config flag
+            cmake --build . --parallel --config Debug
+          else
+            # On Linux, single-configuration generator doesn't need --config flag
+            cmake --build . --parallel
+          fi
 
-    - name: Install CUDA Toolkit
-      uses: Jimver/cuda-toolkit@v0.2.25
-      id: cuda-toolkit
-      with:
-        cuda: ${{ env.CUDA_VERSION }}
-        method: 'network'
-        use-github-cache: true
-        log-file-suffix: 'coverage-ubuntu.txt'
+      - name: run tests
+        shell: bash
+        working-directory: ${{ github.workspace }}/build
+        run: |
+          if [ "${{ runner.os }}" == "Windows" ]; then
+            # On Windows, Visual Studio is a multi-configuration generator and requires -C flag
+            ctest --output-on-failure --parallel -C Debug
+          else
+            # On Linux, single-configuration generator doesn't need -C flag
+            ctest --output-on-failure --parallel
+          fi
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: "3.11"
+  python-testing:
+    name: Python package testing on ${{matrix.os}}
+    runs-on: ${{matrix.os}}
+    timeout-minutes: 45
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+      fail-fast: false
 
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y lcov build-essential ninja-build
+    steps:
+      - uses: actions/checkout@v4
 
-    - name: Install Catch2 with proper configuration
-      run: |
-        if [ ! -d "/usr/local/lib/cmake/Catch2" ] || [ "${{ steps.cache-catch2-coverage.outputs.cache-hit }}" != "true" ]; then
-          echo "Cache miss or Catch2 not found, installing Catch2..."
-          # Clean up any existing directory
-          rm -rf ~/catch2-build
-          git clone -b v$CATCH2_VERSION https://github.com/catchorg/Catch2.git ~/catch2-build
-          cd ~/catch2-build
-          mkdir build
-          cd build
-          cmake -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release -DCATCH_INSTALL_DOCS=OFF ..
-          make -j$(nproc)
-          sudo make install
-          sudo ldconfig
-        else
-          echo "Catch2 already installed from cache."
-        fi
+      - name: Install CUDA Toolkit (Linux)
+        if: runner.os == 'Linux'
+        uses: Jimver/cuda-toolkit@v0.2.25
+        id: cuda-toolkit-linux
+        with:
+          cuda: ${{ env.CUDA_VERSION }}
+          method: 'local'
+          use-github-cache: true
+          log-file-suffix: 'python-linux.txt'
 
-    - name: Update library cache
-      run: sudo ldconfig
-
-    - name: Install Python dependencies
-      run: |
-        python -m pip install --upgrade pip
-        python -m pip install scikit-build-core pybind11[global]
-
-    - name: Verify build environment
-      run: |
-        echo "=== Verifying Build Environment ==="
-        # Ensure compilers are working
-        gcc --version
-        g++ --version
-        # Ensure CMake and Ninja are working
-        cmake --version
-        ninja --version
-        # Test basic compilation
-        echo 'int main() { return 0; }' > test.c
-        gcc test.c -o test_c && echo "GCC test: PASSED" || echo "GCC test: FAILED"
-        echo 'int main() { return 0; }' > test.cpp  
-        g++ test.cpp -o test_cpp && echo "G++ test: PASSED" || echo "G++ test: FAILED"
-        rm -f test.c test.cpp test_c test_cpp
-        # Verify CMake can create basic projects
-        mkdir -p test_cmake && cd test_cmake
-        echo 'cmake_minimum_required(VERSION 3.18)' > CMakeLists.txt
-        echo 'project(test)' >> CMakeLists.txt
-        cmake . -G Ninja && echo "CMake Ninja test: PASSED" || echo "CMake Ninja test: FAILED"
-        cd .. && rm -rf test_cmake
-
-    - name: Clean any existing builds
-      run: |
-        rm -rf ${{ github.workspace }}/build*
-
-    - name: Configure and build with coverage
-      run: |
-        mkdir -p ${{ github.workspace }}/build_coverage
-        cd ${{ github.workspace }}/build_coverage
-        cmake $GITHUB_WORKSPACE \
-          -DCMAKE_BUILD_TYPE=Debug \
-          -DBUILD_DOCS=OFF \
-          -DBUILD_TESTING=ON \
-          -DCMAKE_CXX_FLAGS="--coverage" \
-          -DCMAKE_C_FLAGS="--coverage" \
-          -DCMAKE_PREFIX_PATH="/usr/local" \
-          -G "Unix Makefiles"
-        cmake --build . --parallel
-
-    - name: Install Python package in development mode
-      run: |
-        echo "Available CMake generators:"
-        cmake --help | grep -A 20 "Generators" || true
-        echo "=== Environment Information ==="
-        echo "Python version: $(python --version)"
-        echo "CMake version: $(cmake --version)"
-        echo "Ninja version: $(ninja --version)"
-        echo "GCC version: $(gcc --version | head -1)"
-        echo "G++ version: $(g++ --version | head -1)"
-        echo "Available compilers:"
-        which gcc g++ || echo "Compilers not found in PATH"
-        echo "=== Building Python package ==="
-        # Test basic compiler functionality
-        echo 'int main() { return 0; }' > test.cpp
-        g++ test.cpp -o test && echo "G++ basic test: PASSED" || echo "G++ basic test: FAILED"
-        rm -f test.cpp test
-        
-        # First attempt with Ninja generator using environment variable
-        export CMAKE_GENERATOR="Ninja"
-        python -m pip install --no-build-isolation \
-          --config-settings=build-dir="${{ github.workspace }}/build_python" \
-          --config-settings=cmake.define.CMAKE_CXX_FLAGS="--coverage" \
-          --config-settings=cmake.define.CMAKE_C_FLAGS="--coverage" \
-          --config-settings=cmake.define.BUILD_TESTING="OFF" \
-          --config-settings=cmake.define.BUILD_PYTHON="ON" \
-          --config-settings=cmake.build-type="Debug" \
-          --config-settings=cmake.verbose="true" \
-          -v -e . || {
-            echo "=== First attempt with Ninja failed, trying Unix Makefiles ==="
-            rm -rf ${{ github.workspace }}/build_python
-            export CMAKE_GENERATOR="Unix Makefiles"
-            python -m pip install --no-build-isolation \
-              --config-settings=build-dir="${{ github.workspace }}/build_python_fallback" \
-              --config-settings=cmake.define.CMAKE_CXX_FLAGS="--coverage" \
-              --config-settings=cmake.define.CMAKE_C_FLAGS="--coverage" \
-              --config-settings=cmake.define.BUILD_TESTING="OFF" \
-              --config-settings=cmake.define.BUILD_PYTHON="ON" \
-              --config-settings=cmake.build-type="Debug" \
-              --config-settings=cmake.verbose="true" \
-              -v -e .
+      - name: Install CUDA Toolkit (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Write-Output "Installing CUDA ${{ env.CUDA_VERSION }} for Python testing..."
+          
+          # Download CUDA installer - using the full installer to ensure all components
+          $cudaUrl = "https://developer.download.nvidia.com/compute/cuda/${{ env.CUDA_VERSION }}/local_installers/cuda_${{ env.CUDA_VERSION }}_537.58_windows.exe"
+          $cudaInstaller = "$env:TEMP\cuda_installer.exe"
+          
+          Write-Output "Downloading CUDA installer from: $cudaUrl"
+          try {
+            Invoke-WebRequest -Uri $cudaUrl -OutFile $cudaInstaller -TimeoutSec 600
+          
+            # Install CUDA with all required components for Python bindings
+            $installArgs = @(
+              "-s",
+              "nvcc_${{ env.CUDA_VERSION_SHORT }}",           # CUDA compiler
+              "cudart_${{ env.CUDA_VERSION_SHORT }}",         # CUDA runtime
+              "curand_${{ env.CUDA_VERSION_SHORT }}",         # cuRAND library
+              "curand_dev_${{ env.CUDA_VERSION_SHORT }}",     # cuRAND development files  
+              "cublas_${{ env.CUDA_VERSION_SHORT }}",         # cuBLAS library
+              "cublas_dev_${{ env.CUDA_VERSION_SHORT }}",     # cuBLAS development files
+              "cusparse_${{ env.CUDA_VERSION_SHORT }}",       # cuSPARSE library
+              "cusparse_dev_${{ env.CUDA_VERSION_SHORT }}",   # cuSPARSE development files
+              "visual_studio_integration_${{ env.CUDA_VERSION_SHORT }}"  # VS integration
+            )
+          
+            $process = Start-Process -FilePath $cudaInstaller -ArgumentList $installArgs -Wait -NoNewWindow -PassThru
+          
+            if ($process.ExitCode -eq 0) {
+              Write-Output "✓ CUDA toolkit for Python bindings installed successfully"
+          
+              # Add CUDA to PATH
+              $cudaPath = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v${{ env.CUDA_VERSION_SHORT }}\bin"
+              if (Test-Path $cudaPath) {
+                echo "$cudaPath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+              }
+            } else {
+              Write-Warning "CUDA installation returned exit code: $($process.ExitCode)"
+            }
           }
-        python -m pip install -r requirements-dev.txt
+          catch {
+            Write-Error "CUDA installation failed: $_"
+            Write-Output "Continuing without CUDA installation..."
+          }
 
-    - name: Verify installation
-      run: |
-        python -c "import cuRBLAS; print('cuRBLAS imported successfully')" || echo "Import failed, continuing with tests..."
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
 
-    - name: Run Python tests with coverage
-      run: |
-        python -m pytest --cov=. --cov-report=xml --cov-report=term-missing
+      - name: Run Python tests
+        shell: bash
+        run: |
+          python -m pip install .
+          python -m pip install -r requirements-dev.txt
+          pytest
 
-    - name: Run C++ tests
-      shell: bash
-      working-directory: ${{ github.workspace }}/build_coverage
-      run: ctest --output-on-failure || true
+  coverage-test:
+    name: Coverage Testing
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
 
-    - name: Collect C++ coverage report
-      shell: bash
-      working-directory: ${{ github.workspace }}
-      run: |
-        echo "Collecting coverage information..."
-        # Check which build directories exist
-        ls -la build* || echo "No build directories found"
-        
-        # Initialize coverage counters
-        if [ -d "./build_coverage" ]; then
-          echo "Processing build_coverage directory..."
-          lcov --directory ./build_coverage --zerocounters || true
-        fi
-        if [ -d "./build_python" ]; then
-          echo "Processing build_python directory..."
-          lcov --directory ./build_python --zerocounters || true
-        fi
-        if [ -d "./build_python_fallback" ]; then
-          echo "Processing build_python_fallback directory..."
-          lcov --directory ./build_python_fallback --zerocounters || true
-        fi
-        
-        # Capture coverage data
-        if [ -d "./build_coverage" ]; then
-          lcov --directory ./build_coverage --capture --output-file coverage_cpp.info --ignore-errors mismatch,source || true
-        fi
-        if [ -d "./build_python" ]; then
-          lcov --directory ./build_python --capture --output-file coverage_python.info --ignore-errors mismatch,source || true
-        fi
-        if [ -d "./build_python_fallback" ]; then
-          lcov --directory ./build_python_fallback --capture --output-file coverage_python_fallback.info --ignore-errors mismatch,source || true
-        fi
-        
-        # Combine coverage files if they exist
-        COVERAGE_FILES=""
-        if [ -f "coverage_cpp.info" ]; then
-          COVERAGE_FILES="$COVERAGE_FILES --add-tracefile coverage_cpp.info"
-        fi
-        if [ -f "coverage_python.info" ]; then
-          COVERAGE_FILES="$COVERAGE_FILES --add-tracefile coverage_python.info"
-        fi
-        if [ -f "coverage_python_fallback.info" ]; then
-          COVERAGE_FILES="$COVERAGE_FILES --add-tracefile coverage_python_fallback.info"
-        fi
-        
-        if [ -n "$COVERAGE_FILES" ]; then
-          lcov $COVERAGE_FILES --output-file coverage.info --ignore-errors unused || true
-          # Remove system and test files from coverage
-          lcov --remove coverage.info '/usr/*' '*/tests/*' '*/test_*' '*/Catch2/*' '*/build_python*/*' --output-file coverage_filtered.info --ignore-errors unused || true
-          # List coverage info for debugging
-          lcov --list coverage_filtered.info || true
-        else
-          echo "No coverage files found"
-          touch coverage_filtered.info
-        fi
+    steps:
+      - uses: actions/checkout@v4
 
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v5
-      with:
-        fail_ci_if_error: false
-        files: ./coverage_filtered.info,./coverage.xml
-        token: ${{ secrets.CODECOV_TOKEN }}
-        verbose: true
+      - name: Cache Catch2 (Coverage)
+        uses: actions/cache@v4
+        id: cache-catch2-coverage
+        with:
+          path: |
+            ~/catch2-build
+            /usr/local/lib/cmake/Catch2
+            /usr/local/include/catch2
+            /usr/local/lib/libCatch2*
+          key: catch2-${{ env.CATCH2_VERSION }}-coverage-linux-${{ github.ref }}
+
+      - name: Install CUDA Toolkit
+        uses: Jimver/cuda-toolkit@v0.2.25
+        id: cuda-toolkit
+        with:
+          cuda: ${{ env.CUDA_VERSION }}
+          method: 'network'
+          use-github-cache: true
+          log-file-suffix: 'coverage-ubuntu.txt'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lcov build-essential ninja-build
+
+      - name: Install Catch2 with proper configuration
+        run: |
+          if [ ! -d "/usr/local/lib/cmake/Catch2" ] || [ "${{ steps.cache-catch2-coverage.outputs.cache-hit }}" != "true" ]; then
+            echo "Cache miss or Catch2 not found, installing Catch2..."
+            # Clean up any existing directory
+            rm -rf ~/catch2-build
+            git clone -b v$CATCH2_VERSION https://github.com/catchorg/Catch2.git ~/catch2-build
+            cd ~/catch2-build
+            mkdir build
+            cd build
+            cmake -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release -DCATCH_INSTALL_DOCS=OFF ..
+            make -j$(nproc)
+            sudo make install
+            sudo ldconfig
+          else
+            echo "Catch2 already installed from cache."
+          fi
+
+      - name: Update library cache
+        run: sudo ldconfig
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install scikit-build-core pybind11[global]
+
+      - name: Verify build environment
+        run: |
+          echo "=== Verifying Build Environment ==="
+          # Ensure compilers are working
+          gcc --version
+          g++ --version
+          # Ensure CMake and Ninja are working
+          cmake --version
+          ninja --version
+          # Test basic compilation
+          echo 'int main() { return 0; }' > test.c
+          gcc test.c -o test_c && echo "GCC test: PASSED" || echo "GCC test: FAILED"
+          echo 'int main() { return 0; }' > test.cpp  
+          g++ test.cpp -o test_cpp && echo "G++ test: PASSED" || echo "G++ test: FAILED"
+          rm -f test.c test.cpp test_c test_cpp
+          # Verify CMake can create basic projects
+          mkdir -p test_cmake && cd test_cmake
+          echo 'cmake_minimum_required(VERSION 3.18)' > CMakeLists.txt
+          echo 'project(test)' >> CMakeLists.txt
+          cmake . -G Ninja && echo "CMake Ninja test: PASSED" || echo "CMake Ninja test: FAILED"
+          cd .. && rm -rf test_cmake
+
+      - name: Clean any existing builds
+        run: |
+          rm -rf ${{ github.workspace }}/build*
+
+      - name: Configure and build with coverage
+        run: |
+          mkdir -p ${{ github.workspace }}/build_coverage
+          cd ${{ github.workspace }}/build_coverage
+          cmake $GITHUB_WORKSPACE \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DBUILD_DOCS=OFF \
+            -DBUILD_TESTING=ON \
+            -DCMAKE_CXX_FLAGS="--coverage" \
+            -DCMAKE_C_FLAGS="--coverage" \
+            -DCMAKE_PREFIX_PATH="/usr/local" \
+            -G "Unix Makefiles"
+          cmake --build . --parallel
+
+      - name: Install Python package in development mode
+        run: |
+          echo "Available CMake generators:"
+          cmake --help | grep -A 20 "Generators" || true
+          echo "=== Environment Information ==="
+          echo "Python version: $(python --version)"
+          echo "CMake version: $(cmake --version)"
+          echo "Ninja version: $(ninja --version)"
+          echo "GCC version: $(gcc --version | head -1)"
+          echo "G++ version: $(g++ --version | head -1)"
+          echo "Available compilers:"
+          which gcc g++ || echo "Compilers not found in PATH"
+          echo "=== Building Python package ==="
+          # Test basic compiler functionality
+          echo 'int main() { return 0; }' > test.cpp
+          g++ test.cpp -o test && echo "G++ basic test: PASSED" || echo "G++ basic test: FAILED"
+          rm -f test.cpp test
+          
+          # First attempt with Ninja generator using environment variable
+          export CMAKE_GENERATOR="Ninja"
+          python -m pip install --no-build-isolation \
+            --config-settings=build-dir="${{ github.workspace }}/build_python" \
+            --config-settings=cmake.define.CMAKE_CXX_FLAGS="--coverage" \
+            --config-settings=cmake.define.CMAKE_C_FLAGS="--coverage" \
+            --config-settings=cmake.define.BUILD_TESTING="OFF" \
+            --config-settings=cmake.define.BUILD_PYTHON="ON" \
+            --config-settings=cmake.build-type="Debug" \
+            --config-settings=cmake.verbose="true" \
+            -v -e . || {
+              echo "=== First attempt with Ninja failed, trying Unix Makefiles ==="
+              rm -rf ${{ github.workspace }}/build_python
+              export CMAKE_GENERATOR="Unix Makefiles"
+              python -m pip install --no-build-isolation \
+                --config-settings=build-dir="${{ github.workspace }}/build_python_fallback" \
+                --config-settings=cmake.define.CMAKE_CXX_FLAGS="--coverage" \
+                --config-settings=cmake.define.CMAKE_C_FLAGS="--coverage" \
+                --config-settings=cmake.define.BUILD_TESTING="OFF" \
+                --config-settings=cmake.define.BUILD_PYTHON="ON" \
+                --config-settings=cmake.build-type="Debug" \
+                --config-settings=cmake.verbose="true" \
+                -v -e .
+            }
+          python -m pip install -r requirements-dev.txt
+
+      - name: Verify installation
+        run: |
+          python -c "import cuRBLAS; print('cuRBLAS imported successfully')" || echo "Import failed, continuing with tests..."
+
+      - name: Run Python tests with coverage
+        run: |
+          python -m pytest --cov=. --cov-report=xml --cov-report=term-missing
+
+      - name: Run C++ tests
+        shell: bash
+        working-directory: ${{ github.workspace }}/build_coverage
+        run: ctest --output-on-failure || true
+
+      - name: Collect C++ coverage report
+        shell: bash
+        working-directory: ${{ github.workspace }}
+        run: |
+          echo "Collecting coverage information..."
+          # Check which build directories exist
+          ls -la build* || echo "No build directories found"
+          
+          # Initialize coverage counters
+          if [ -d "./build_coverage" ]; then
+            echo "Processing build_coverage directory..."
+            lcov --directory ./build_coverage --zerocounters || true
+          fi
+          if [ -d "./build_python" ]; then
+            echo "Processing build_python directory..."
+            lcov --directory ./build_python --zerocounters || true
+          fi
+          if [ -d "./build_python_fallback" ]; then
+            echo "Processing build_python_fallback directory..."
+            lcov --directory ./build_python_fallback --zerocounters || true
+          fi
+          
+          # Capture coverage data
+          if [ -d "./build_coverage" ]; then
+            lcov --directory ./build_coverage --capture --output-file coverage_cpp.info --ignore-errors mismatch,source || true
+          fi
+          if [ -d "./build_python" ]; then
+            lcov --directory ./build_python --capture --output-file coverage_python.info --ignore-errors mismatch,source || true
+          fi
+          if [ -d "./build_python_fallback" ]; then
+            lcov --directory ./build_python_fallback --capture --output-file coverage_python_fallback.info --ignore-errors mismatch,source || true
+          fi
+          
+          # Combine coverage files if they exist
+          COVERAGE_FILES=""
+          if [ -f "coverage_cpp.info" ]; then
+            COVERAGE_FILES="$COVERAGE_FILES --add-tracefile coverage_cpp.info"
+          fi
+          if [ -f "coverage_python.info" ]; then
+            COVERAGE_FILES="$COVERAGE_FILES --add-tracefile coverage_python.info"
+          fi
+          if [ -f "coverage_python_fallback.info" ]; then
+            COVERAGE_FILES="$COVERAGE_FILES --add-tracefile coverage_python_fallback.info"
+          fi
+          
+          if [ -n "$COVERAGE_FILES" ]; then
+            lcov $COVERAGE_FILES --output-file coverage.info --ignore-errors unused || true
+            # Remove system and test files from coverage
+            lcov --remove coverage.info '/usr/*' '*/tests/*' '*/test_*' '*/Catch2/*' '*/build_python*/*' --output-file coverage_filtered.info --ignore-errors unused || true
+            # List coverage info for debugging
+            lcov --list coverage_filtered.info || true
+          else
+            echo "No coverage files found"
+            touch coverage_filtered.info
+          fi
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          fail_ci_if_error: false
+          files: ./coverage_filtered.info,./coverage.xml
+          token: ${{ secrets.CODECOV_TOKEN }}
+          verbose: true
