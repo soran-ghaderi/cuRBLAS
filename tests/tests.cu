@@ -1,9 +1,11 @@
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include "curblas/curblas.cuh"
 #include "curblas/curblas.h"
 #include <cuda_runtime.h>
 #include <numeric>
 #include <cstring>
+#include <iostream>
 
 //using namespace curblas;
 
@@ -29,7 +31,7 @@ TEST_CASE("generateGaussianSketch kernel tests", "[gaussianSketch]") {
         float scale = 1.0f;
 
         float* d_sketch;
-        checkCudaError(cudaMalloc((void**)&d_sketch, totalElements * sizeof(float), "Failed to allocate device memory for sketch"));
+        checkCudaError(cudaMalloc((void**)&d_sketch, totalElements * sizeof(float)), "Failed to allocate device memory for sketch");
 
         // set up kernel
         int blockSize = 256;
@@ -44,7 +46,21 @@ TEST_CASE("generateGaussianSketch kernel tests", "[gaussianSketch]") {
         std::vector<float> h_sketch(totalElements);
         checkCudaError(cudaMemcpy(h_sketch.data(), d_sketch, totalElements * sizeof(float), cudaMemcpyDeviceToHost), "Failed to copy sketch data to host");
 
-        
+        // scale check
+
+        double sum = std::accumulate(h_sketch.begin(), h_sketch.end(), 0.0f);
+        double mean = sum / totalElements;
+
+        double sqSum = 0.0;
+        for (float val : h_sketch) {
+            sqSum += (val - mean) * (val - mean);
+        }
+
+        double stdDev = std::sqrt(sqSum / totalElements);
+        REQUIRE_THAT(mean, Catch::Matchers::WithinAbs(0.0, 0.1));
+        REQUIRE_THAT(stdDev, Catch::Matchers::WithinAbs(scale, 0.1));
+
+        checkCudaError(cudaFree(d_sketch), "Failed to free device memory for sketch");
 
     }
 }
