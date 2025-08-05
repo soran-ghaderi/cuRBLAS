@@ -3,11 +3,9 @@ name: CI
 on:
   push:
     branches: [ main ]
-  # FIX: Triggers on all pull requests for comprehensive testing.
   pull_request:
   workflow_dispatch:
 
-# Centralize versions here for consistency.
 env:
   CUDA_VERSION: '11.8.0'
   CATCH2_VERSION: '3.6.0'
@@ -18,10 +16,11 @@ jobs:
   #################################################################
   build-and-test:
     name: C++ Tests on ${{ matrix.os }}
+    # FIX: Pinning OS versions for stability. ubuntu-22.04 is guaranteed to support CUDA 11.8.
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ ubuntu-latest, windows-latest ]
+        os: [ ubuntu-22.04, windows-latest ]
       fail-fast: false
 
     steps:
@@ -37,14 +36,12 @@ jobs:
             ${{ runner.os == 'Windows' && 'C:/Program Files (x86)/Catch2' || '' }}
           key: catch2-${{ env.CATCH2_VERSION }}-${{ runner.os }}
 
-      # --- FIX: Use different, more robust installation strategies per OS ---
       - name: Install CUDA Toolkit (Linux)
         if: runner.os == 'Linux'
         uses: Jimver/cuda-toolkit@v0.2.25
         with:
           cuda: ${{ env.CUDA_VERSION }}
-          # 'network' method is more robust on Linux as it uses apt.
-          method: 'network'
+          method: 'network' # 'network' method is robust on Ubuntu 22.04
 
       - name: Install CUDA Toolkit (Windows)
         if: runner.os == 'Windows'
@@ -52,8 +49,9 @@ jobs:
         with:
           cuda: ${{ env.CUDA_VERSION }}
           method: 'local'
-          # Disable the action's internal cache on Windows to prevent path errors.
+          # FIX: Disable all caching on Windows to prevent path validation errors.
           use-local-cache: 'false'
+          use-github-cache: 'false'
 
       - name: Install Catch2 (Linux)
         if: runner.os == 'Linux' && steps.cache-catch2.outputs.cache-hit != 'true'
@@ -75,11 +73,13 @@ jobs:
       - name: Configure and Build
         run: |
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON -DBUILD_DOCS=OFF
+          # --config is used by Windows (multi-config) and ignored by Linux (single-config)
           cmake --build build --parallel --config Debug
 
       - name: Run C++ Tests
         working-directory: build
-        run: ctest --output-on-failure --parallel --config Debug
+        # -C flag for CTest works on Windows and is ignored on Linux
+        run: ctest --output-on-failure --parallel -C Debug
 
   #################################################################
   # JOB 2: Build and run Python package tests                     #
@@ -89,7 +89,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ ubuntu-latest, windows-latest ]
+        os: [ ubuntu-22.04, windows-latest ] # Pinned Ubuntu version
         python-version: [ "3.11" ]
       fail-fast: false
 
@@ -110,6 +110,7 @@ jobs:
           cuda: ${{ env.CUDA_VERSION }}
           method: 'local'
           use-local-cache: 'false'
+          use-github-cache: 'false'
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
@@ -129,7 +130,7 @@ jobs:
   #################################################################
   coverage-test:
     name: Coverage Report
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04 # Pinned Ubuntu version for stability
 
     steps:
       - uses: actions/checkout@v4
@@ -149,18 +150,12 @@ jobs:
           method: 'network'
 
       - name: Install Python Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements-dev.txt pytest-cov
+        run: python -m pip install --upgrade pip setuptools wheel pytest pytest-cov -r requirements-dev.txt
 
       - name: Configure and Build with Coverage Flags
         run: |
-          cmake -S . -B build \
-            -DCMAKE_BUILD_TYPE=Debug \
-            -DBUILD_TESTING=ON \
-            -DBUILD_DOCS=OFF \
-            -DCMAKE_CXX_FLAGS="--coverage" \
-            -DCMAKE_C_FLAGS="--coverage"
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON \
+            -DCMAKE_CXX_FLAGS="--coverage" -DCMAKE_C_FLAGS="--coverage"
           cmake --build build --parallel
 
       - name: Run C++ Tests
