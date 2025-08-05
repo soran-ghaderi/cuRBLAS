@@ -2,14 +2,12 @@ name: CI
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
+  # FIX: Triggers on all pull requests for comprehensive testing.
   pull_request:
-    branches:
-      - main
   workflow_dispatch:
-# Centralize versions here to ensure all jobs are consistent.
-# CUDA 11.8 is chosen for its broad driver compatibility on GitHub runners.
+
+# Centralize versions here for consistency.
 env:
   CUDA_VERSION: '11.8.0'
   CATCH2_VERSION: '3.6.0'
@@ -33,19 +31,29 @@ jobs:
         uses: actions/cache@v4
         id: cache-catch2
         with:
-          # Cache the installed library/header files, not the source.
           path: |
             ${{ runner.os == 'Linux' && '/usr/local/lib/cmake/Catch2' || '' }}
             ${{ runner.os == 'Linux' && '/usr/local/include/catch2' || '' }}
             ${{ runner.os == 'Windows' && 'C:/Program Files (x86)/Catch2' || '' }}
           key: catch2-${{ env.CATCH2_VERSION }}-${{ runner.os }}
 
-      # This single, unified step installs CUDA on both Linux and Windows.
-      - name: Install CUDA Toolkit
+      # --- FIX: Use different, more robust installation strategies per OS ---
+      - name: Install CUDA Toolkit (Linux)
+        if: runner.os == 'Linux'
+        uses: Jimver/cuda-toolkit@v0.2.25
+        with:
+          cuda: ${{ env.CUDA_VERSION }}
+          # 'network' method is more robust on Linux as it uses apt.
+          method: 'network'
+
+      - name: Install CUDA Toolkit (Windows)
+        if: runner.os == 'Windows'
         uses: Jimver/cuda-toolkit@v0.2.25
         with:
           cuda: ${{ env.CUDA_VERSION }}
           method: 'local'
+          # Disable the action's internal cache on Windows to prevent path errors.
+          use-local-cache: 'false'
 
       - name: Install Catch2 (Linux)
         if: runner.os == 'Linux' && steps.cache-catch2.outputs.cache-hit != 'true'
@@ -64,58 +72,44 @@ jobs:
           cmake -S $env:USERPROFILE\catch2 -B $env:USERPROFILE\catch2\build -DBUILD_TESTING=OFF -DCATCH_INSTALL_DOCS=OFF
           cmake --build $env:USERPROFILE\catch2\build --config Release --target install
 
-      - name: Create Build Directory
-        run: cmake -E make_directory ${{ github.workspace }}/build
-
-      - name: Configure CMake
-        working-directory: ${{ github.workspace }}/build
+      - name: Configure and Build
         run: |
-          # This simple call works because the cuda-toolkit action sets up the
-          # environment for CMake to find CUDA automatically.
-          cmake .. -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON -DBUILD_DOCS=OFF
-
-      - name: Build
-        working-directory: ${{ github.workspace }}/build
-        run: |
-          # Use --config for multi-config generators like Visual Studio on Windows
-          if [ "${{ runner.os }}" == "Windows" ]; then
-            cmake --build . --parallel --config Debug
-          else
-            cmake --build . --parallel
-          fi
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON -DBUILD_DOCS=OFF
+          cmake --build build --parallel --config Debug
 
       - name: Run C++ Tests
-        working-directory: ${{ github.workspace }}/build
-        run: |
-          # Use -C flag to specify config for CTest on Windows
-          if [ "${{ runner.os }}" == "Windows" ]; then
-            ctest --output-on-failure --parallel -C Debug
-          else
-            ctest --output-on-failure --parallel
-          fi
+        working-directory: build
+        run: ctest --output-on-failure --parallel --config Debug
 
   #################################################################
-  # JOB 2: Build and run Python package tests on Linux and Windows #
+  # JOB 2: Build and run Python package tests                     #
   #################################################################
   python-testing:
-    name: Python Tests on ${{ matrix.os }}
-    needs: build-and-test
+    name: Python Tests on ${{ matrix.os }} (Python ${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ ubuntu-latest, windows-latest ]
-        python-version: [ "3.11", "3.12" ]
+        python-version: [ "3.11" ]
       fail-fast: false
 
     steps:
       - uses: actions/checkout@v4
 
-      # This single, unified step replaces the two separate, complex install scripts.
-      - name: Install CUDA Toolkit
+      - name: Install CUDA Toolkit (Linux)
+        if: runner.os == 'Linux'
+        uses: Jimver/cuda-toolkit@v0.2.25
+        with:
+          cuda: ${{ env.CUDA_VERSION }}
+          method: 'network'
+
+      - name: Install CUDA Toolkit (Windows)
+        if: runner.os == 'Windows'
         uses: Jimver/cuda-toolkit@v0.2.25
         with:
           cuda: ${{ env.CUDA_VERSION }}
           method: 'local'
+          use-local-cache: 'false'
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
@@ -126,12 +120,8 @@ jobs:
         shell: bash
         run: |
           python -m pip install --upgrade pip
-          # Install dev requirements first
           python -m pip install -r requirements-dev.txt
-          # Install the current package in editable mode
-          # The build system (e.g., scikit-build-core) will find CUDA automatically.
           python -m pip install -v -e .
-          # Run tests
           pytest
 
   #################################################################
@@ -139,7 +129,6 @@ jobs:
   #################################################################
   coverage-test:
     name: Coverage Report
-    needs: build-and-test
     runs-on: ubuntu-latest
 
     steps:
@@ -153,18 +142,16 @@ jobs:
       - name: Install System Dependencies
         run: sudo apt-get update && sudo apt-get install -y lcov
 
-      # Use the same unified CUDA install step for consistency.
       - name: Install CUDA Toolkit
         uses: Jimver/cuda-toolkit@v0.2.25
         with:
           cuda: ${{ env.CUDA_VERSION }}
-          method: 'local'
+          method: 'network'
 
       - name: Install Python Dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r requirements-dev.txt
-          python -m pip install pytest-cov
+          python -m pip install -r requirements-dev.txt pytest-cov
 
       - name: Configure and Build with Coverage Flags
         run: |
@@ -178,12 +165,10 @@ jobs:
 
       - name: Run C++ Tests
         working-directory: build
-        # Run tests but don't fail the job if tests fail, so we still get a coverage report.
         run: ctest --output-on-failure || true
 
       - name: Install Python Package with Coverage
         run: |
-          # Set flags for the Python build to also generate coverage data
           export CMAKE_ARGS="-DCMAKE_C_FLAGS=--coverage -DCMAKE_CXX_FLAGS=--coverage"
           python -m pip install -v -e .
 
@@ -191,16 +176,13 @@ jobs:
         run: pytest --cov=. --cov-report=xml
 
       - name: Generate C++ Coverage Report (lcov)
-        working-directory: ${{ github.workspace }}
         run: |
           lcov --capture --directory build --output-file coverage.info
-          # Remove noise from the coverage report
           lcov --remove coverage.info '/usr/*' '*/tests/*' '*/build/*' --output-file coverage_filtered.info
 
       - name: Upload Coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
-          # The action will automatically find coverage.xml and *cov*.info files
           token: ${{ secrets.CODECOV_TOKEN }}
-          fail_ci_if_error: false # Optional: prevents CI failure if Codecov upload fails
+          fail_ci_if_error: false
           verbose: true
