@@ -1,2 +1,5 @@
 add_executable(cuRBLAS_app ReduceSum.cu)
 target_link_libraries(cuRBLAS_app PRIVATE cuRBLAS)
+
+add_executable(generateGaussianSketch gaussian_sketch.cu)
+target_link_libraries(generateGaussianSketch PRIVATE cuRBLAS)

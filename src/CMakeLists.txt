@@ -3,7 +3,7 @@ if(CUDA_FOUND)
 
     # Create the curblas library with CUDA sources
     add_library(cuRBLAS
-            curblas.cu
+        curblas.cu
         context.cu
     )
 
@@ -32,7 +32,7 @@ if(CUDA_FOUND)
 else()
     # Create CPU-only version
     add_library(cuRBLAS
-            curblas.cu
+        curblas.cu
     )
 
     message(STATUS "Building cuRBLAS without CUDA support")

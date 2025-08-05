@@ -65,12 +65,46 @@ namespace curblas {
     }
 
     __global__ void generateGaussianSketch(float *sketch, int rows, int cols, long long seed, float scale){
-        int idx = blockIdx.x * blockDim.x + threadIdx.x;
+        int tIdx = blockIdx.x * blockDim.x + threadIdx.x;
+
         int totalElements = rows * cols;
-        if (idx < totalElements) {
-            curandState state;
-            curand_init(seed, idx, 0, &state);
-            sketch[idx] = curand_normal(&state) * scale;
+        // if (idx < totalElements) {
+        //     curandState state;
+        //     curand_init(seed, idx, 0, &state);
+        //     sketch[idx] = curand_normal(&state) * scale;
+        // }
+
+        // mem coalesced version:
+
+        int idxStart = tIdx * 4;
+        // curandState state;
+        curandStatePhilox4_32_10_t state;
+
+        curand_init(seed, tIdx, 0, &state);
+
+        if(idxStart < totalElements) {
+            float4 r = curand_normal4(&state);
+
+            r.x *= scale;
+            r.y *= scale;
+            r.z *= scale;
+            r.w *= scale;
+
+            sketch[idxStart] = r.x;
+
+            if(idxStart + 1 < totalElements) {
+                sketch[idxStart + 1] = r.y;
+            }
+            
+            if(idxStart + 2 < totalElements) {
+                sketch[idxStart + 2] = r.z;
+            }
+
+            if (idxStart + 3 < totalElements) {
+                sketch[idxStart + 3] = r.w;
+            }
+
+
         }
     }
 

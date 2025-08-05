@@ -19,8 +19,8 @@ void printMatrix(const std::vector<float>& vec, int rows, int cols) {
 }
 
 int main() {
-    int rows = 4;
-    int cols = 5;
+    int rows = 4000;
+    int cols = 5000;
 
     int totalElements = rows * cols;
     long long seed = 112345L;
@@ -34,7 +34,13 @@ int main() {
     cudaMalloc((void**)&d_sketch, totalElements * sizeof(float));
 
     int blockSize = 256;
-    int numBlocks = (totalElements + blockSize - 1) / blockSize;
+
+    // int totalElements = rows * cols;
+    int elementsPerThread = 4; //test
+    int totalThreads = (totalElements + elementsPerThread - 1) / elementsPerThread;
+    int numBlocks = (totalThreads + blockSize - 1) / blockSize;
+
+    // int numBlocks = (totalElements + blockSize - 1) / blockSize;
 
     curblas::generateGaussianSketch<<<numBlocks, blockSize>>>(d_sketch, rows, cols, seed, scale);
 
@@ -47,13 +53,17 @@ int main() {
 
 
     cudaDeviceSynchronize();
+    cudaStream_t stream;
+    cudaStreamCreate(&stream);
 
 //  bring the data back:
-    cudaMemcpy(h_sketch.data(), d_sketch, totalElements * sizeof(float), cudaMemcpyDeviceToHost);
+    cudaMemcpyAsync(h_sketch.data(), d_sketch, totalElements * sizeof(float), cudaMemcpyDeviceToHost, stream);
+    cudaStreamSynchronize(stream);
+    cudaStreamDestroy(stream);
 
-    std::cout << "result:" << std::endl;
+    std::cout << "result:" << rows << 'x' << cols << std::endl;
 
-    printMatrix(h_sketch, rows, cols);
+//    printMatrix(h_sketch, rows, cols);
 
     cudaFree(d_sketch);
 
