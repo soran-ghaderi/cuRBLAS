@@ -18,10 +18,39 @@ void checkCudaError(cudaError err, const char* msg) {
 //  REQUIRE(add_one(123) == 124);
 //  REQUIRE(add_one(-1) == 0);
 //}
+TEST_CASE("generateGaussianSketch kernel tests", "[gaussianSketch]") {
 
+    SECTION("basic generation and distribution check") {
+        int rows = 100;
+        int cols = 64;
+
+        int totalElements = rows * cols;
+        long long seed = 42;
+        float scale = 1.0f;
+
+        float* d_sketch;
+        checkCudaError(cudaMalloc((void**)&d_sketch, totalElements * sizeof(float), "Failed to allocate device memory for sketch"));
+
+        // set up kernel
+        int blockSize = 256;
+        int elementPerThread = 4;
+        int totalThreads = (totalElements + elementPerThread - 1) / elementPerThread;
+        int numBlocks = (totalThreads + blockSize - 1) / blockSize;
+
+        curblas::generateGaussianSketch<<<numBlocks, blockSize>>>(d_sketch, rows, cols, seed, scale);
+        checkCudaError(cudaGetLastError(), "Kernel launch failed");
+        checkCudaError(cudaDeviceSynchronize(), "Device synchronization failed");
+
+        std::vector<float> h_sketch(totalElements);
+        checkCudaError(cudaMemcpy(h_sketch.data(), d_sketch, totalElements * sizeof(float), cudaMemcpyDeviceToHost), "Failed to copy sketch data to host");
+
+        
+
+    }
+}
 TEST_CASE("reduceSum kernel tests", "[reduceSum]") {
     SECTION("sum of N elements") {
-        const int N = 1024;
+        int N = 1024;
         std::vector<float> h_input(N, 1.0f);
         float *d_input, *d_output;
 
@@ -29,16 +58,20 @@ TEST_CASE("reduceSum kernel tests", "[reduceSum]") {
 
         int blockSize = 256;
         int numBlocks = (N + blockSize - 1) / blockSize;
-        checkCudaError(cudaMalloc((void**)&d_output, numBlocks * sizeof(float)), "Failed to allocate device memory for output");
+        checkCudaError(cudaMalloc((void**)&d_output, blockSize * sizeof(float)), "Failed to allocate device memory for output");
 
         checkCudaError(cudaMemcpy(d_input, h_input.data(), N * sizeof(float), cudaMemcpyHostToDevice), "Failed to copy input data to device");
 
+        checkCudaError(cudaMemset(d_output, 0, blockSize * sizeof(float)), "Failed to initialize output memory");
 //        curblas::reduceSum<<<numBlocks, blockSize, blockSize * sizeof(float)>>>(d_input, d_output, N);
-        curblas::reduceSum<<<numBlocks, blockSize, blockSize * sizeof(float)>>>(d_input, d_output, N);
+
+        void *args[] = {&d_input, &d_output, &N};
+//        curblas::reduceSum<<<numBlocks, blockSize, blockSize * sizeof(float)>>>(d_input, d_output, N);
+        cudaLaunchCooperativeKernel((void*)curblas::reduceSum, dim3(numBlocks), dim3(blockSize), args, blockSize * sizeof(float));
 
 
         checkCudaError(cudaGetLastError(), "Kernel launch failed");
-        checkCudaError(cudaDeviceSynchronize(), "Device synchronization failed");
+//        checkCudaError(cudaDeviceSynchronize(), "Device synchronization failed");
 
 
     }
