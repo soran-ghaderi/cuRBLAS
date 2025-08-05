@@ -2,11 +2,13 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
-  workflow_dispatch:
-
+    branches:
+      - main
+    pull_request:
+      branches:
+        - main
+    # upon manual triggers
+    workflow_dispatch:
 # Centralize versions here to ensure all jobs are consistent.
 # CUDA 11.8 is chosen for its broad driver compatibility on GitHub runners.
 env:
