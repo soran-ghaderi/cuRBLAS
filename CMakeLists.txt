@@ -114,7 +114,7 @@ if(BUILD_PYTHON)
   # Add Python bindings
   find_package(pybind11 REQUIRED)
   # Compile the Pybind11 module
-  pybind11_add_module(_cuRBLAS python/cuRBLAS/_cuRBLAS.cpp)
+  pybind11_add_module(_cuRBLAS python/curblas/_curblas.cpp)
   target_link_libraries(_cuRBLAS PUBLIC cuRBLAS)
 
   # Install the Python module shared library

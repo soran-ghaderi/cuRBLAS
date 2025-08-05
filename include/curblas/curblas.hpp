@@ -10,7 +10,7 @@ namespace cuRBLAS {
  */
 //    int add_one(int x);
 //
-//    __global__ void reduceSum(const float* input, float* output, int n);
+    __global__ void reduceSum(const float* input, float* output, int n);
 
 
 
