@@ -71,7 +71,7 @@ jobs:
           Write-Output "Installing CUDA ${{ env.CUDA_VERSION }} for Windows..."
           
           # Download CUDA installer - using the full installer to ensure all components
-          $cudaUrl = "https://developer.download.nvidia.com/compute/cuda/${{ env.CUDA_VERSION }}/local_installers/cuda_${{ env.CUDA_VERSION }}_537.58_windows.exe"
+          $cudaUrl = "https://developer.download.nvidia.com/compute/cuda/${{ env.CUDA_VERSION }}/local_installers/cuda_${{ env.CUDA_VERSION }}_536.25_windows.exe"
           $cudaInstaller = "$env:TEMP\cuda_installer.exe"
           
           Write-Output "Downloading CUDA installer from: $cudaUrl"
@@ -561,7 +561,7 @@ jobs:
           Write-Output "Installing CUDA ${{ env.CUDA_VERSION }} for Python testing..."
           
           # Download CUDA installer - using the full installer to ensure all components
-          $cudaUrl = "https://developer.download.nvidia.com/compute/cuda/${{ env.CUDA_VERSION }}/local_installers/cuda_${{ env.CUDA_VERSION }}_537.58_windows.exe"
+          $cudaUrl = "https://developer.download.nvidia.com/compute/cuda/${{ env.CUDA_VERSION }}/local_installers/cuda_${{ env.CUDA_VERSION }}_536.25_windows.exe"
           $cudaInstaller = "$env:TEMP\cuda_installer.exe"
 
           Write-Output "Downloading CUDA installer from: $cudaUrl"
@@ -599,7 +599,7 @@ jobs:
           catch {
             Write-Output "Primary CUDA installation failed, trying fallback method..."
             # Download CUDA installer directly
-            $cudaUrl = "https://developer.download.nvidia.com/compute/cuda/12.5.1/network_installers/cuda_12.5.1_windows_network.exe"
+            $cudaUrl = "https://developer.download.nvidia.com/compute/cuda/${{ env.CUDA_VERSION }}/network_installers/cuda_${{ env.CUDA_VERSION }}_windows_network.exe"
             $cudaInstaller = "$env:TEMP\cuda_installer.exe"
             Write-Output "Downloading CUDA installer from: $cudaUrl"
             try {
