@@ -1,6 +1,9 @@
-#include "cuRBLAS/curblas.h"
-#include "cuRBLAS/curblas_types.h"
+#include "curblas/curblas.h"
+#include "curblas/curblas_types.h"
 #include <cuda_runtime.h>
+#include <curand.h>
+#include <curand_kernel.h>
+
 #include <memory>
 #include <cmath>
 
@@ -9,55 +12,62 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-/**
- * Custom random number generator state for CUDA
- */
-struct curblasRngState {
-    unsigned long long seed;
-    unsigned long long counter;
-    
-    __device__ __host__ curblasRngState(unsigned long long s = 1234ULL) : seed(s), counter(0) {}
-    
-    // Simple PRNG based on linear congruential generator
-    __device__ __host__ unsigned int next() {
-        counter = (counter * 1103515245ULL + 12345ULL) ^ seed;
-        return (unsigned int)(counter >> 16);
-    }
-    
-    // Generate float in [0, 1)
-    __device__ __host__ float nextFloat() {
-        return (float)next() / (float)UINT_MAX;
-    }
-    
-    // Generate normal distributed float (Box-Muller transform)
-    __device__ __host__ float nextGaussian() {
-        static bool hasSpare = false;
-        static float spare;
-        
-        if (hasSpare) {
-            hasSpare = false;
-            return spare;
-        }
-        
-        hasSpare = true;
-        float u = nextFloat();
-        float v = nextFloat();
-        
-        // Use device-compatible math functions
-        #ifdef __CUDA_ARCH__
-        float mag = sqrtf(-2.0f * logf(u));
-        spare = mag * cosf(2.0f * (float)M_PI * v);
-        return mag * sinf(2.0f * (float)M_PI * v);
-        #else
-        float mag = sqrt(-2.0f * log(u));
-        spare = mag * cos(2.0f * (float)M_PI * v);
-        return mag * sin(2.0f * (float)M_PI * v);
-        #endif
-    }
-};
+
+// for the rand generator, I decided to go with the CURAND lib
+///**
+// * Custom random number generator state for CUDA
+// */
+//struct curblasRngState {
+//    unsigned long long seed;
+//    unsigned long long counter;
+//
+//    __device__ __host__ curblasRngState(unsigned long long s = 1234ULL) : seed(s), counter(0) {}
+//
+//    // Simple PRNG based on linear congruential generator
+//    __device__ __host__ unsigned int next() {
+//        counter = (counter * 1103515245ULL + 12345ULL) ^ seed;
+//        return (unsigned int)(counter >> 16);
+//    }
+//
+//    // Generate float in [0, 1)
+//    __device__ __host__ float nextFloat() {
+//        return (float)next() / (float)UINT_MAX;
+//    }
+//
+//    // Generate normal distributed float (Box-Muller transform)
+//    __device__ __host__ float nextGaussian() {
+//        static bool hasSpare = false;
+//        static float spare;
+//
+//        if (hasSpare) {
+//            hasSpare = false;
+//            return spare;
+//        }
+//
+//        hasSpare = true;
+//        float u = nextFloat();
+//        float v = nextFloat();
+//
+//        // Use device-compatible math functions
+//        #ifdef __CUDA_ARCH__
+//        float mag = sqrtf(-2.0f * logf(u));
+//        spare = mag * cosf(2.0f * (float)M_PI * v);
+//        return mag * sinf(2.0f * (float)M_PI * v);
+//        #else
+//        float mag = sqrt(-2.0f * log(u));
+//        spare = mag * cos(2.0f * (float)M_PI * v);
+//        return mag * sin(2.0f * (float)M_PI * v);
+//        #endif
+//    }
+//};
+
+__global__ void setup_rng_kernel(curandState *state, unsigned long long seed) {
+    curand_init(seed, threadIdx.x, 0, state);
+}
+
 
 /**
- * Internal cuRBLAS context structure
+ * Internal curblas context structure
  */
 struct curblasContext {
     // CUDA stream for operations
@@ -65,7 +75,8 @@ struct curblasContext {
     bool ownsStream;
     
     // Custom random number generation
-    curblasRngState* rng;
+//    curblasRngState* rng;
+    curandState* rng;
     unsigned long long seed;
     
     // Configuration
@@ -95,7 +106,7 @@ struct curblasContext {
 
 /*
  * ============================================================================
- * cuRBLAS Context Management Implementation
+ * curblas Context Management Implementation
  * ============================================================================
  */
 
@@ -137,13 +148,31 @@ curblasStatus_t curblasCreate(curblasHandle_t* handle) {
         ctx->ownsStream = true;
         
         // Initialize custom random number generator
-        ctx->rng = new curblasRngState(ctx->seed);
-        if (!ctx->rng) {
+//        ctx->rng = new curblasRngState(ctx->seed);
+//        if (!ctx->rng) {
+//            cudaStreamDestroy(ctx->stream);
+//            delete ctx;
+//            return CURBLAS_STATUS_ALLOC_FAILED;
+//        }
+//
+        cudaStatus = cudaMalloc(&ctx->rng, sizeof(curandState));
+        if (cudaStatus != cudaSuccess) {
             cudaStreamDestroy(ctx->stream);
             delete ctx;
             return CURBLAS_STATUS_ALLOC_FAILED;
         }
-        
+
+        // Initialize the RNG state using our kernel
+        setup_rng_kernel<<<1, 1, 0, ctx->stream>>>(ctx->rng, ctx->seed);
+        cudaStatus = cudaGetLastError(); // Check for kernel launch errors
+        if (cudaStatus != cudaSuccess) {
+            cudaFree(ctx->rng);
+            cudaStreamDestroy(ctx->stream);
+            delete ctx;
+            return CURBLAS_STATUS_EXECUTION_FAILED;
+        }
+
+
         *handle = ctx;
         return CURBLAS_STATUS_SUCCESS;
         
@@ -163,7 +192,9 @@ curblasStatus_t curblasDestroy(curblasHandle_t handle) {
     
     // Destroy custom random number generator
     if (ctx->rng) {
-        delete ctx->rng;
+//        delete ctx->rng;
+        cudaFree(ctx->rng);
+
     }
     
     // Destroy stream if we own it
@@ -233,7 +264,7 @@ curblasStatus_t curblasGetStream(curblasHandle_t handle, cudaStream_t* streamId)
 
 /*
  * ============================================================================
- * cuRBLAS Configuration Implementation
+ * curblas Configuration Implementation
  * ============================================================================
  */
 
@@ -288,8 +319,10 @@ curblasStatus_t curblasSetRandomSeed(curblasHandle_t handle, unsigned long long 
     
     // Update custom random number generator seed
     if (ctx->rng) {
-        ctx->rng->seed = seed;
-        ctx->rng->counter = 0;  // Reset counter when seed changes
+//        ctx->rng->seed = seed;
+//        ctx->rng->counter = 0;  // Reset counter when seed changes
+        setup_rng_kernel<<<1, 1, 0, ctx->stream>>>(ctx->rng, ctx->seed);
+
     }
     
     return CURBLAS_STATUS_SUCCESS;
@@ -308,7 +341,7 @@ curblasStatus_t curblasSetMathMode(curblasHandle_t handle, curblasMath_t mode) {
 
 /*
  * ============================================================================
- * cuRBLAS Utility Functions Implementation
+ * curblas Utility Functions Implementation
  * ============================================================================
  */
 
@@ -325,6 +358,6 @@ const char* curblasGetStatusString(curblasStatus_t status) {
         case CURBLAS_STATUS_NOT_SUPPORTED:    return "CURBLAS_STATUS_NOT_SUPPORTED";
         case CURBLAS_STATUS_LICENSE_ERROR:    return "CURBLAS_STATUS_LICENSE_ERROR";
         case CURBLAS_STATUS_INSUFFICIENT_WORKSPACE: return "CURBLAS_STATUS_INSUFFICIENT_WORKSPACE";
-        default:                              return "Unknown cuRBLAS status";
+        default:                              return "Unknown curblas status";
     }
 } 

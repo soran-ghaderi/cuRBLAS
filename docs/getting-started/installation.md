@@ -14,7 +14,7 @@ Currently cuRBLAS is in development. To install and use cuRBLAS:
 
 ```bash
 git clone https://github.com/cuRBLAS/cuRBLAS.git
-cd cuRBLAS
+cd curblas
 mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
 make -j$(nproc)

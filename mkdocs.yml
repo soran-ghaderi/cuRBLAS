@@ -1,14 +1,14 @@
-site_name: cuRBLAS Documentation
+site_name: curblas Documentation
 site_url: https://curblas.github.io/
-site_author: cuRBLAS Team
+site_author: curblas Team
 site_description: >-
   CUDA Randomized BLAS Library - High-performance randomized linear algebra operations on NVIDIA GPUs
 
-repo_name: cuRBLAS/cuRBLAS
+repo_name: curblas/curblas
 repo_url: https://github.com/cuRBLAS/cuRBLAS
 edit_uri: edit/main/docs/
 
-copyright: Copyright &copy; 2024 cuRBLAS Team
+copyright: Copyright &copy; 2024 curblas Team
 
 theme:
   name: material
@@ -117,8 +117,8 @@ markdown_extensions:
   - pymdownx.magiclink:
       normalize_issue_symbols: true
       repo_url_shorthand: true
-      user: cuRBLAS
-      repo: cuRBLAS
+      user: curblas
+      repo: curblas
   - pymdownx.mark
   - pymdownx.smartsymbols
   - pymdownx.snippets:
