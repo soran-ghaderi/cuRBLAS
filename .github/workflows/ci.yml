@@ -56,7 +56,7 @@ jobs:
 
       - name: Install CUDA Toolkit (Linux)
         if: runner.os == 'Linux'
-        uses: Jimver/cuda-toolkit@v0.2.25
+        uses: Jimver/cuda-toolkit@v0.2.26
         id: cuda-toolkit-linux
         with:
           cuda: ${{ env.CUDA_VERSION }}
@@ -546,7 +546,7 @@ jobs:
 
       - name: Install CUDA Toolkit (Linux)
         if: runner.os == 'Linux'
-        uses: Jimver/cuda-toolkit@v0.2.25
+        uses: Jimver/cuda-toolkit@v0.2.26
         id: cuda-toolkit-linux
         with:
           cuda: ${{ env.CUDA_VERSION }}
@@ -667,7 +667,7 @@ jobs:
           key: catch2-${{ env.CATCH2_VERSION }}-coverage-linux-${{ github.ref }}
 
       - name: Install CUDA Toolkit
-        uses: Jimver/cuda-toolkit@v0.2.25
+        uses: Jimver/cuda-toolkit@v0.2.26
         id: cuda-toolkit
         with:
           cuda: ${{ env.CUDA_VERSION }}
