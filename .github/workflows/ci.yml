@@ -26,7 +26,7 @@ jobs:
     timeout-minutes: 60
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ ubuntu-latest, windows-latest ]
       fail-fast: false
 
     steps:
@@ -174,21 +174,23 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
+          # Set CUDA environment variables for Windows builds
           $cudaPath = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v${{ env.CUDA_VERSION_SHORT }}"
-          Write-Output "Setting up CUDA environment variables for: $cudaPath"
-          
           if (Test-Path $cudaPath) {
-            # Set CUDA environment variables
+            Write-Output "Setting up CUDA environment variables..."
+            # Add CUDA paths to environment
             echo "CUDA_PATH=$cudaPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
             echo "CUDA_ROOT=$cudaPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
             echo "CUDA_HOME=$cudaPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
             echo "CUDA_TOOLKIT_ROOT_DIR=$cudaPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-            echo "CudaToolkitDir=$cudaPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           
+            # Add CUDA bin to PATH if not already added
+            $cudaBinPath = "$cudaPath\bin"
+
             # Set include and library paths
             $cudaIncludePath = "$cudaPath\include"
             $cudaLibPath = "$cudaPath\lib\x64"
-          
+
             if (Test-Path $cudaIncludePath) {
               echo "CUDA_INCLUDE_DIRS=$cudaIncludePath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
               Write-Output "✓ CUDA include path set: $cudaIncludePath"
@@ -197,6 +199,24 @@ jobs:
             if (Test-Path $cudaLibPath) {
               echo "CUDA_LIBRARIES=$cudaLibPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
               Write-Output "✓ CUDA library path set: $cudaLibPath"
+            }
+
+            if (Test-Path $cudaBinPath) {
+              echo "$cudaBinPath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            }
+          
+            # Verify CUDA headers are accessible
+            $cudaIncludePath = "$cudaPath\include"
+            if (Test-Path "$cudaIncludePath\cuda_runtime.h") {
+              Write-Output "CUDA headers found at: $cudaIncludePath"
+              echo "CUDA_INCLUDE_DIRS=$cudaIncludePath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            } else {
+              Write-Warning "CUDA headers not found at expected location: $cudaIncludePath"
+              # List what's actually in the include directory
+              if (Test-Path $cudaIncludePath) {
+                Write-Output "Contents of CUDA include directory:"
+                Get-ChildItem $cudaIncludePath | Select-Object Name | Format-Table -AutoSize
+              }
             }
           
             # Verify critical header files exist
@@ -210,10 +230,107 @@ jobs:
               }
             }
           
-            Write-Output "CUDA environment setup completed successfully"
+          
+            # Set library paths
+            $cudaLibPath = "$cudaPath\lib\x64"
+            if (Test-Path $cudaLibPath) {
+              echo "CUDA_LIBRARIES=$cudaLibPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            }
+          
+            Write-Output "CUDA environment setup completed"
           } else {
-            Write-Error "CUDA installation path not found: $cudaPath"
-            exit 1
+            Write-Warning "CUDA installation path not found: $cudaPath"
+            # Try to find CUDA in alternative locations
+            $alternativePaths = @(
+              "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v${{ env.CUDA_VERSION }}",
+              "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v${{ env.CUDA_VERSION }}",
+              "C:\cuda"
+            )
+            foreach ($altPath in $alternativePaths) {
+              if (Test-Path $altPath) {
+                Write-Output "Found CUDA at alternative path: $altPath"
+                echo "CUDA_PATH=$altPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+                echo "CUDA_ROOT=$altPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+                echo "CUDA_HOME=$altPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+                echo "CUDA_TOOLKIT_ROOT_DIR=$altPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          
+                # Set include and lib paths for alternative location
+                $altIncludePath = "$altPath\include"
+                $altLibPath = "$altPath\lib\x64"
+                if (Test-Path $altIncludePath) {
+                  echo "CUDA_INCLUDE_DIRS=$altIncludePath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+                }
+                if (Test-Path $altLibPath) {
+                  echo "CUDA_LIBRARIES=$altLibPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+                }
+                break
+              }
+            }
+          }
+          
+          # Also try to find CUDA installation by searching the filesystem
+          Write-Output "Searching for CUDA installations on the system..."
+          $possibleCudaPaths = @()
+          if (Test-Path "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA") {
+            $possibleCudaPaths += Get-ChildItem "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA" -Directory | ForEach-Object { $_.FullName }
+          }
+          
+          if ($possibleCudaPaths.Count -gt 0) {
+            Write-Output "Found CUDA installations at:"
+            $possibleCudaPaths | ForEach-Object { Write-Output "  $_" }
+          
+            # Use the first available CUDA installation if our primary path wasn't found
+            if (-not (Test-Path "$env:CUDA_PATH\include\cuda_runtime.h") -and $possibleCudaPaths.Count -gt 0) {
+              $firstCudaPath = $possibleCudaPaths[0]
+              Write-Output "Using CUDA installation: $firstCudaPath"
+              echo "CUDA_PATH=$firstCudaPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+              echo "CUDA_ROOT=$firstCudaPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+              echo "CUDA_HOME=$firstCudaPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+              echo "CUDA_TOOLKIT_ROOT_DIR=$firstCudaPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            }
+          } else {
+            Write-Warning "No CUDA installations found in standard locations"
+          }
+
+      - name: Verify CUDA environment (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Write-Output "=== CUDA Environment Verification ==="
+          Write-Output "CUDA_PATH: $env:CUDA_PATH"
+          Write-Output "CUDA_ROOT: $env:CUDA_ROOT"
+          Write-Output "CUDA_HOME: $env:CUDA_HOME"
+          Write-Output "CUDA_TOOLKIT_ROOT_DIR: $env:CUDA_TOOLKIT_ROOT_DIR"
+          Write-Output "CUDA_INCLUDE_DIRS: $env:CUDA_INCLUDE_DIRS"
+          Write-Output "CUDA_LIBRARIES: $env:CUDA_LIBRARIES"
+          
+          Write-Output "`n=== PATH Contents ==="
+          $env:PATH -split ';' | Where-Object { $_ -like '*cuda*' -or $_ -like '*CUDA*' } | ForEach-Object { Write-Output "  $_" }
+          
+          Write-Output "`n=== CUDA File System Check ==="
+          if ($env:CUDA_PATH) {
+            $cudaInclude = "$env:CUDA_PATH\include"
+            if (Test-Path $cudaInclude) {
+              Write-Output "CUDA include directory exists: $cudaInclude"
+              if (Test-Path "$cudaInclude\cuda_runtime.h") {
+                Write-Output "✓ cuda_runtime.h found"
+              } else {
+                Write-Output "✗ cuda_runtime.h NOT found"
+                Write-Output "Include directory contents:"
+                Get-ChildItem $cudaInclude -Name | Select-Object -First 10 | ForEach-Object { Write-Output "  $_" }
+              }
+            } else {
+              Write-Output "✗ CUDA include directory does not exist: $cudaInclude"
+            }
+          
+            $cudaLib = "$env:CUDA_PATH\lib\x64"
+            if (Test-Path $cudaLib) {
+              Write-Output "✓ CUDA library directory exists: $cudaLib"
+            } else {
+              Write-Output "✗ CUDA library directory does not exist: $cudaLib"
+            }
+          } else {
+            Write-Output "✗ CUDA_PATH not set"
           }
 
       - name: Setup MSBuild CUDA integration (Windows)
@@ -222,31 +339,61 @@ jobs:
         run: |
           Write-Output "Setting up MSBuild CUDA integration..."
           
+          # Create MSBuild Directory.Build.props file content line by line
           $workspace = "${{ github.workspace }}"
+          $buildDir = Join-Path -Path $workspace -ChildPath "build"
           $buildPropsPath = Join-Path -Path $workspace -ChildPath "Directory.Build.props"
+          $buildDirPropsPath = Join-Path -Path $buildDir -ChildPath "Directory.Build.props"
+          
+          # Ensure the build directory exists
+          if (-not (Test-Path $buildDir)) {
+            Write-Output "Creating build directory at: $buildDir"
+            New-Item -ItemType Directory -Path $buildDir | Out-Null
+          }
           
           Write-Output "Creating MSBuild properties file at: $buildPropsPath"
           
-          # Create MSBuild properties file
-          @"
-        #  <?xml version="1.0" encoding="utf-8"?>
-        #  <Project>
-        #  <PropertyGroup>
-        #  <CudaToolkitDir>$env:CUDA_PATH</CudaToolkitDir>
-        #  <CUDA_PATH>$env:CUDA_PATH</CUDA_PATH>
-        #  <CudaVersion>${{ env.CUDA_VERSION_SHORT }}</CudaVersion>
-        #  </PropertyGroup>
-        #  </Project>
-        #  "@ | Out-File -FilePath $buildPropsPath -Encoding UTF8
-        #
+          # Write XML content line by line to avoid YAML parsing issues
+          '<?xml version="1.0" encoding="utf-8"?>' | Out-File -FilePath $buildPropsPath -Encoding UTF8
+          '<Project>' | Out-File -FilePath $buildPropsPath -Append -Encoding UTF8
+          '  <PropertyGroup>' | Out-File -FilePath $buildPropsPath -Append -Encoding UTF8
+          "    <CudaToolkitDir>$env:CUDA_PATH</CudaToolkitDir>" | Out-File -FilePath $buildPropsPath -Append -Encoding UTF8
+          "    <CUDA_PATH>$env:CUDA_PATH</CUDA_PATH>" | Out-File -FilePath $buildPropsPath -Append -Encoding UTF8
+          '    <CudaVersion>${{ env.CUDA_VERSION_SHORT }}</CudaVersion>' | Out-File -FilePath $buildPropsPath -Append -Encoding UTF8
+          '  </PropertyGroup>' | Out-File -FilePath $buildPropsPath -Append -Encoding UTF8
+          '</Project>' | Out-File -FilePath $buildPropsPath -Append -Encoding UTF8
+          
+          # Also create it in the build directory
+          Write-Output "Creating MSBuild properties file at: $buildDirPropsPath"
+          
+          '<?xml version="1.0" encoding="utf-8"?>' | Out-File -FilePath $buildDirPropsPath -Encoding UTF8
+          '<Project>' | Out-File -FilePath $buildDirPropsPath -Append -Encoding UTF8
+          '  <PropertyGroup>' | Out-File -FilePath $buildDirPropsPath -Append -Encoding UTF8
+          "    <CudaToolkitDir>$env:CUDA_PATH</CudaToolkitDir>" | Out-File -FilePath $buildDirPropsPath -Append -Encoding UTF8
+          "    <CUDA_PATH>$env:CUDA_PATH</CUDA_PATH>" | Out-File -FilePath $buildDirPropsPath -Append -Encoding UTF8
+          '    <CudaVersion>12.5</CudaVersion>' | Out-File -FilePath $buildDirPropsPath -Append -Encoding UTF8
+          '  </PropertyGroup>' | Out-File -FilePath $buildDirPropsPath -Append -Encoding UTF8
+          '</Project>' | Out-File -FilePath $buildDirPropsPath -Append -Encoding UTF8
+          
+          # Verify the file was created
           if (Test-Path $buildPropsPath) {
-            Write-Output "✓ MSBuild properties file created successfully"
+            Write-Output "MSBuild properties file created successfully at: $buildPropsPath"
             Write-Output "File contents:"
             Get-Content $buildPropsPath
           } else {
-            Write-Error "✗ Failed to create MSBuild properties file"
-            exit 1
-            }
+            Write-Output "Failed to create MSBuild properties file at: $buildPropsPath"
+          }
+          
+          if (Test-Path $buildDirPropsPath) {
+            Write-Output "MSBuild properties file created successfully at: $buildDirPropsPath"
+          } else {
+            Write-Output "Failed to create MSBuild properties file at: $buildDirPropsPath"
+          }
+          
+          # Set additional environment variables for MSBuild
+          Write-Output "Setting MSBuild environment variables..."
+          echo "CUDA_PATH=$env:CUDA_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          echo "CudaToolkitDir=$env:CUDA_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Install Catch2 (Linux)
         if: runner.os == 'Linux'
@@ -275,20 +422,22 @@ jobs:
             Write-Output "Cache miss or Catch2 not found, installing Catch2..."
             # Clean up any existing directory
             if (Test-Path "~/catch2-build") { Remove-Item -Recurse -Force "~/catch2-build" }
-          
+            # Ensure parent directory exists and create the target directory
             $catch2Dir = Resolve-Path ~ | Join-Path -ChildPath "catch2-build"
             Write-Output "Creating directory: $catch2Dir"
             New-Item -ItemType Directory -Force -Path $catch2Dir | Out-Null
-          
             # Clone Catch2
             Write-Output "Cloning Catch2 v$Env:CATCH2_VERSION..."
             git clone -b v$Env:CATCH2_VERSION https://github.com/catchorg/Catch2.git $catch2Dir
-          
+            if (-not (Test-Path $catch2Dir)) {
+              Write-Error "Failed to clone Catch2 repository"
+              exit 1
+            }
             Set-Location $catch2Dir
+            Write-Output "Current directory: $(Get-Location)"
             New-Item -ItemType Directory -Name "build" -Force | Out-Null
             Set-Location build
-          
-            # Build Catch2 in Debug mode
+            # Build Catch2 in Debug mode to match main project configuration
             cmake -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Debug -DCATCH_INSTALL_DOCS=OFF ..
             cmake --build . --target install --config Debug
           } else {
@@ -321,8 +470,10 @@ jobs:
           CUDA_PATH: ${{ env.CUDA_PATH }}
           CudaToolkitDir: ${{ env.CUDA_PATH }}
         run: |
-          echo "=== Configuring CMake with CUDA support ==="
+          # Configure CMake with explicit CUDA paths for Windows
+          echo "Configuring CMake with CUDA support..."
           echo "CUDA_PATH: $CUDA_PATH"
+          echo "CUDA_TOOLKIT_ROOT_DIR: $CUDA_TOOLKIT_ROOT_DIR"
           
           # Convert Windows paths to CMake-compatible format
           CUDA_PATH_CMAKE=$(echo "$CUDA_PATH" | sed 's|\\|/|g')
@@ -333,6 +484,10 @@ jobs:
           echo "CUDA_PATH_CMAKE: $CUDA_PATH_CMAKE"
           echo "CUDA_INCLUDE_CMAKE: $CUDA_INCLUDE_CMAKE"
           echo "CUDA_LIB_CMAKE: $CUDA_LIB_CMAKE"
+          
+          # Set MSBuild environment variables for CUDA
+          export CUDA_PATH="$CUDA_PATH"
+          export CudaToolkitDir="$CUDA_PATH"
           
           # Configure with explicit CUDA paths
           cmake "$GITHUB_WORKSPACE" \
@@ -408,11 +563,11 @@ jobs:
           # Download CUDA installer - using the full installer to ensure all components
           $cudaUrl = "https://developer.download.nvidia.com/compute/cuda/${{ env.CUDA_VERSION }}/local_installers/cuda_${{ env.CUDA_VERSION }}_537.58_windows.exe"
           $cudaInstaller = "$env:TEMP\cuda_installer.exe"
-          
+
           Write-Output "Downloading CUDA installer from: $cudaUrl"
-          try {
+          try {        
             Invoke-WebRequest -Uri $cudaUrl -OutFile $cudaInstaller -TimeoutSec 600
-          
+
             # Install CUDA with all required components for Python bindings
             $installArgs = @(
               "-s",
@@ -442,8 +597,42 @@ jobs:
             }
           }
           catch {
-            Write-Error "CUDA installation failed: $_"
-            Write-Output "Continuing without CUDA installation..."
+            Write-Output "Primary CUDA installation failed, trying fallback method..."
+            # Download CUDA installer directly
+            $cudaUrl = "https://developer.download.nvidia.com/compute/cuda/12.5.1/network_installers/cuda_12.5.1_windows_network.exe"
+            $cudaInstaller = "$env:TEMP\cuda_installer.exe"
+            Write-Output "Downloading CUDA installer from: $cudaUrl"
+            try {
+              Invoke-WebRequest -Uri $cudaUrl -OutFile $cudaInstaller -TimeoutSec 300
+              Write-Output "Installing CUDA toolkit for cuRBLAS Python bindings..."
+              # Install components needed for cuRBLAS library
+              $installArgs = @(
+              "-s",
+              "nvcc_${{ env.CUDA_VERSION_SHORT }}",           # CUDA compiler
+              "cudart_${{ env.CUDA_VERSION_SHORT }}",         # CUDA runtime
+              "curand_${{ env.CUDA_VERSION_SHORT }}",         # cuRAND library
+              "curand_dev_${{ env.CUDA_VERSION_SHORT }}",     # cuRAND development files  
+              "cublas_${{ env.CUDA_VERSION_SHORT }}",         # cuBLAS library
+              "cublas_dev_${{ env.CUDA_VERSION_SHORT }}",     # cuBLAS development files
+              "cusparse_${{ env.CUDA_VERSION_SHORT }}",       # cuSPARSE library
+              "cusparse_dev_${{ env.CUDA_VERSION_SHORT }}",   # cuSPARSE development files
+              "visual_studio_integration_${{ env.CUDA_VERSION_SHORT }}"  # VS integration
+              )
+              Start-Process -FilePath $cudaInstaller -ArgumentList $installArgs -Wait -NoNewWindow
+              # Add CUDA to PATH
+              $cudaPath = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.5\bin"
+              if (Test-Path $cudaPath) {
+                echo "$cudaPath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+                Write-Output "CUDA toolkit for Python bindings installed successfully"
+              } else {
+                Write-Warning "CUDA installation may have failed - path not found: $cudaPath"
+              }
+            }
+            catch {
+              Write-Error "Both primary and fallback CUDA installation methods failed: $_"
+              # Continue anyway as CUDA might not be strictly required for all builds
+              Write-Output "Continuing without CUDA installation..."
+            }
           }
 
       - name: Set up Python
