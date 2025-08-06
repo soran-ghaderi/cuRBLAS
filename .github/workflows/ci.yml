@@ -1,14 +1,14 @@
 name: CI
 
-on:
+on: # -> temprarely disabled until I find a proper GPU runner for building and running the tests.
   # We run CI on pushes to the main branch
-  push:
-    branches:
-      - main
-  # and on all pull requests to the main branch
-  pull_request:
-    branches:
-      - main
+#  push:
+#    branches:
+#      - main
+#  # and on all pull requests to the main branch
+#  pull_request:
+#    branches:
+#      - main
   # as well as upon manual triggers through the 'Actions' tab of the Github UI
   workflow_dispatch:
 
@@ -71,7 +71,7 @@ jobs:
           Write-Output "Installing CUDA ${{ env.CUDA_VERSION }} for Windows..."
           
           # Download CUDA installer - using the full installer to ensure all components
-          $cudaUrl = "https://developer.download.nvidia.com/compute/cuda/${{ env.CUDA_VERSION }}/local_installers/cuda_${{ env.CUDA_VERSION }}_536.25_windows.exe"
+          $cudaUrl = "https://developer.download.nvidia.com/compute/cuda/${{ env.CUDA_VERSION }}/local_installers/cuda_${{ env.CUDA_VERSION }}_555.85_windows.exe" # 12.2.0_536.25 or 12.5.0_555.85
           $cudaInstaller = "$env:TEMP\cuda_installer.exe"
           
           Write-Output "Downloading CUDA installer from: $cudaUrl"
@@ -561,7 +561,7 @@ jobs:
           Write-Output "Installing CUDA ${{ env.CUDA_VERSION }} for Python testing..."
           
           # Download CUDA installer - using the full installer to ensure all components
-          $cudaUrl = "https://developer.download.nvidia.com/compute/cuda/${{ env.CUDA_VERSION }}/local_installers/cuda_${{ env.CUDA_VERSION }}_536.25_windows.exe"
+          $cudaUrl = "https://developer.download.nvidia.com/compute/cuda/${{ env.CUDA_VERSION }}/local_installers/cuda_${{ env.CUDA_VERSION }}_555.85_windows.exe" # 12.2.0_536.25 or 12.5.0_555.85
           $cudaInstaller = "$env:TEMP\cuda_installer.exe"
 
           Write-Output "Downloading CUDA installer from: $cudaUrl"
