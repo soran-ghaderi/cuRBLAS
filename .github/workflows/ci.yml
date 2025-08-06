@@ -15,8 +15,8 @@ on:
 env:
   CATCH2_VERSION: 3.6.0
   # Centralized CUDA version management
-  CUDA_VERSION: "12.2.0"  # Using 12.2.0 for better driver compatibility
-  CUDA_VERSION_SHORT: "12.2"
+  CUDA_VERSION: "12.5.0"  # Using 12.2.0 for better driver compatibility
+  CUDA_VERSION_SHORT: "12.5"
   CUDA_VERSION_MAJOR: "12"
 
 jobs:
@@ -26,7 +26,7 @@ jobs:
     timeout-minutes: 60
     strategy:
       matrix:
-        os: [ ubuntu-22.04, windows-latest ]
+        os: [ ubuntu-latest, windows-latest ]
       fail-fast: false
 
     steps:
@@ -154,21 +154,21 @@ jobs:
             fi
           fi
           
-          # Verify CUDA libraries are available
-          if [ "${{ runner.os }}" == "Windows" ]; then
-            echo "=== Verifying CUDA libraries (Windows) ==="
-            $cudaIncludePath = "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v${{ env.CUDA_VERSION_SHORT }}/include"
-            if [ -f "$cudaIncludePath/curand.h" ]; then
-              echo "✓ curand.h found"
-            else
-              echo "✗ curand.h NOT found"
-            fi
-            if [ -f "$cudaIncludePath/cublas_v2.h" ]; then
-              echo "✓ cublas_v2.h found"
-            else
-              echo "✗ cublas_v2.h NOT found"
-            fi
-          fi
+#           Verify CUDA libraries are available
+#          if [ "${{ runner.os }}" == "Windows" ]; then
+#            echo "=== Verifying CUDA libraries (Windows) ==="
+#            $cudaIncludePath = "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v${{ env.CUDA_VERSION_SHORT }}/include"
+#            if [ -f "$cudaIncludePath/curand.h" ]; then
+#              echo "✓ curand.h found"
+#            else
+#              echo "✗ curand.h NOT found"
+#            fi
+#            if [ -f "$cudaIncludePath/cublas_v2.h" ]; then
+#              echo "✓ cublas_v2.h found"
+#            else
+#              echo "✗ cublas_v2.h NOT found"
+#            fi
+#          fi
 
       - name: Set up CUDA environment variables (Windows)
         if: runner.os == 'Windows'
