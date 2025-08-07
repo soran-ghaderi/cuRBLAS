@@ -64,7 +64,7 @@ namespace curblas {
         }
     }
 
-    __global__ void generateGaussianSketch(float *sketch, int rows, int cols, long long seed, float scale){
+    __global__ void gaussianSketchOperator(float *sketch, int rows, int cols, long long seed, float scale){
         int tIdx = blockIdx.x * blockDim.x + threadIdx.x;
 
         int totalElements = rows * cols;

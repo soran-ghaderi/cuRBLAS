@@ -42,7 +42,7 @@ int main() {
 
     // int numBlocks = (totalElements + blockSize - 1) / blockSize;
 
-    curblas::generateGaussianSketch<<<numBlocks, blockSize>>>(d_sketch, rows, cols, seed, scale);
+    curblas::gaussianSketchOperator<<<numBlocks, blockSize>>>(d_sketch, rows, cols, seed, scale);
 
     cudaError err = cudaGetLastError();
     if (err != cudaSuccess) {

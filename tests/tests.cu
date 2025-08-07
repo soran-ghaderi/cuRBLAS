@@ -20,7 +20,7 @@ void checkCudaError(cudaError err, const char* msg) {
 //  REQUIRE(add_one(123) == 124);
 //  REQUIRE(add_one(-1) == 0);
 //}
-TEST_CASE("generateGaussianSketch kernel tests", "[gaussianSketch]") {
+TEST_CASE("gaussianSketchOperator kernel tests", "[gaussianSketch]") {
 
     SECTION("basic generation and distribution check") {
         int rows = 100;
@@ -39,7 +39,7 @@ TEST_CASE("generateGaussianSketch kernel tests", "[gaussianSketch]") {
         int totalThreads = (totalElements + elementPerThread - 1) / elementPerThread;
         int numBlocks = (totalThreads + blockSize - 1) / blockSize;
 
-        curblas::generateGaussianSketch<<<numBlocks, blockSize>>>(d_sketch, rows, cols, seed, scale);
+        curblas::gaussianSketchOperator<<<numBlocks, blockSize>>>(d_sketch, rows, cols, seed, scale);
         checkCudaError(cudaGetLastError(), "Kernel launch failed");
         checkCudaError(cudaDeviceSynchronize(), "Device synchronization failed");
 
