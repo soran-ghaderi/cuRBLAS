@@ -30,7 +30,7 @@ jobs:
       fail-fast: false
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Cache Catch2 (Linux)
         if: runner.os == 'Linux'
@@ -542,7 +542,7 @@ jobs:
       fail-fast: false
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install CUDA Toolkit (Linux)
         if: runner.os == 'Linux'
@@ -653,7 +653,7 @@ jobs:
     timeout-minutes: 90
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Cache Catch2 (Coverage)
         uses: actions/cache@v4
