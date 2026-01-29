@@ -97,6 +97,14 @@ curblasStatus_t curblasSetRandomSeed(curblasHandle_t handle, unsigned long long 
  */
 curblasStatus_t curblasSetMathMode(curblasHandle_t handle, curblasMath_t mode);
 
+/**
+ * @brief Ensure RNG state pool has sufficient capacity
+ * @param handle curblas handle
+ * @param requiredStates Number of RNG states needed
+ * @return curblas status code
+ */
+curblasStatus_t curblasEnsureRngCapacity(curblasHandle_t handle, size_t requiredStates);
+
 /*
  * ============================================================================
  * curblas Level 3: Randomized Matrix-Matrix Operations
@@ -287,6 +295,11 @@ curblasStatus_t curblasGetOptimalSketchSize(
 
 #ifdef __cplusplus
 }
+#endif
+
+#ifdef __CUDACC__
+#include <curand_kernel.h>
+curandStatePhilox4_32_10_t* curblasGetRngStates(curblasHandle_t handle);
 #endif
 
 #endif // CURBLAS_H 

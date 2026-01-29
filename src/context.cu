@@ -12,74 +12,22 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-
-// for the rand generator, I decided to go with the CURAND lib
-///**
-// * Custom random number generator state for CUDA
-// */
-//struct curblasRngState {
-//    unsigned long long seed;
-//    unsigned long long counter;
-//
-//    __device__ __host__ curblasRngState(unsigned long long s = 1234ULL) : seed(s), counter(0) {}
-//
-//    // Simple PRNG based on linear congruential generator
-//    __device__ __host__ unsigned int next() {
-//        counter = (counter * 1103515245ULL + 12345ULL) ^ seed;
-//        return (unsigned int)(counter >> 16);
-//    }
-//
-//    // Generate float in [0, 1)
-//    __device__ __host__ float nextFloat() {
-//        return (float)next() / (float)UINT_MAX;
-//    }
-//
-//    // Generate normal distributed float (Box-Muller transform)
-//    __device__ __host__ float nextGaussian() {
-//        static bool hasSpare = false;
-//        static float spare;
-//
-//        if (hasSpare) {
-//            hasSpare = false;
-//            return spare;
-//        }
-//
-//        hasSpare = true;
-//        float u = nextFloat();
-//        float v = nextFloat();
-//
-//        // Use device-compatible math functions
-//        #ifdef __CUDA_ARCH__
-//        float mag = sqrtf(-2.0f * logf(u));
-//        spare = mag * cosf(2.0f * (float)M_PI * v);
-//        return mag * sinf(2.0f * (float)M_PI * v);
-//        #else
-//        float mag = sqrt(-2.0f * log(u));
-//        spare = mag * cos(2.0f * (float)M_PI * v);
-//        return mag * sin(2.0f * (float)M_PI * v);
-//        #endif
-//    }
-//};
-
-__global__ void setup_rng_kernel(curandState *state, unsigned long long seed) {
-    curand_init(seed, threadIdx.x, 0, state);
+__global__ void initRngStates(curandStatePhilox4_32_10_t* states, size_t numStates, unsigned long long seed) {
+    size_t id = blockIdx.x * blockDim.x + threadIdx.x;
+    if (id < numStates) {
+        curand_init(seed, id, 0, &states[id]);
+    }
 }
 
-
-/**
- * Internal curblas context structure
- */
 struct curblasContext {
-    // CUDA stream for operations
     cudaStream_t stream;
     bool ownsStream;
     
-    // Custom random number generation
-//    curblasRngState* rng;
-    curandState* rng;
     unsigned long long seed;
     
-    // Configuration
+    curandStatePhilox4_32_10_t* rngStates;
+    size_t rngStatesCapacity;
+    
     curblasAccuracy_t accuracy;
     curblasSketchType_t defaultSketchType;
     curblasMath_t mathMode;
@@ -94,8 +42,9 @@ struct curblasContext {
     curblasContext() : 
         stream(nullptr),
         ownsStream(false),
-        rng(nullptr),
         seed(1234ULL),
+        rngStates(nullptr),
+        rngStatesCapacity(0),
         accuracy(CURBLAS_ACCURACY_MEDIUM),
         defaultSketchType(CURBLAS_SKETCH_AUTO),
         mathMode(CURBLAS_DEFAULT_MATH),
@@ -127,7 +76,6 @@ curblasStatus_t curblasCreate(curblasHandle_t* handle) {
             ctx->deviceId = -1;
             ctx->stream = nullptr;
             ctx->ownsStream = false;
-            ctx->rng = nullptr;
             *handle = ctx;
             return CURBLAS_STATUS_SUCCESS;
         }
@@ -146,32 +94,6 @@ curblasStatus_t curblasCreate(curblasHandle_t* handle) {
             return CURBLAS_STATUS_ALLOC_FAILED;
         }
         ctx->ownsStream = true;
-        
-        // Initialize custom random number generator
-//        ctx->rng = new curblasRngState(ctx->seed);
-//        if (!ctx->rng) {
-//            cudaStreamDestroy(ctx->stream);
-//            delete ctx;
-//            return CURBLAS_STATUS_ALLOC_FAILED;
-//        }
-//
-        cudaStatus = cudaMalloc(&ctx->rng, sizeof(curandState));
-        if (cudaStatus != cudaSuccess) {
-            cudaStreamDestroy(ctx->stream);
-            delete ctx;
-            return CURBLAS_STATUS_ALLOC_FAILED;
-        }
-
-        // Initialize the RNG state using our kernel
-        setup_rng_kernel<<<1, 1, 0, ctx->stream>>>(ctx->rng, ctx->seed);
-        cudaStatus = cudaGetLastError(); // Check for kernel launch errors
-        if (cudaStatus != cudaSuccess) {
-            cudaFree(ctx->rng);
-            cudaStreamDestroy(ctx->stream);
-            delete ctx;
-            return CURBLAS_STATUS_EXECUTION_FAILED;
-        }
-
 
         *handle = ctx;
         return CURBLAS_STATUS_SUCCESS;
@@ -190,19 +112,14 @@ curblasStatus_t curblasDestroy(curblasHandle_t handle) {
     
     curblasContext* ctx = static_cast<curblasContext*>(handle);
     
-    // Destroy custom random number generator
-    if (ctx->rng) {
-//        delete ctx->rng;
-        cudaFree(ctx->rng);
-
+    if (ctx->rngStates) {
+        cudaFree(ctx->rngStates);
     }
     
-    // Destroy stream if we own it
     if (ctx->stream && ctx->ownsStream) {
         cudaStreamDestroy(ctx->stream);
     }
     
-    // Free context
     delete ctx;
     
     return CURBLAS_STATUS_SUCCESS;
@@ -237,9 +154,7 @@ curblasStatus_t curblasSetStream(curblasHandle_t handle, cudaStream_t streamId) 
     }
     
     ctx->stream = streamId;
-    ctx->ownsStream = false;  // We don't own external streams
-    
-    // Note: No need to update stream for custom RNG since it's not tied to CUDA streams
+    ctx->ownsStream = false;
     
     return CURBLAS_STATUS_SUCCESS;
 }
@@ -251,7 +166,6 @@ curblasStatus_t curblasGetStream(curblasHandle_t handle, cudaStream_t* streamId)
     
     curblasContext* ctx = static_cast<curblasContext*>(handle);
     
-    // For CPU-only contexts, return null stream
     if (ctx->deviceId == -1) {
         *streamId = nullptr;
         return CURBLAS_STATUS_SUCCESS;
@@ -260,6 +174,63 @@ curblasStatus_t curblasGetStream(curblasHandle_t handle, cudaStream_t* streamId)
     *streamId = ctx->stream;
     
     return CURBLAS_STATUS_SUCCESS;
+}
+
+/*
+ * ============================================================================
+ * curblas Internal RNG Pool Management
+ * ============================================================================
+ */
+
+curblasStatus_t curblasEnsureRngCapacity(curblasHandle_t handle, size_t requiredStates) {
+    if (handle == nullptr) {
+        return CURBLAS_STATUS_INVALID_VALUE;
+    }
+    
+    curblasContext* ctx = static_cast<curblasContext*>(handle);
+    
+    if (ctx->deviceId == -1) {
+        return CURBLAS_STATUS_NOT_INITIALIZED;
+    }
+    
+    if (ctx->rngStatesCapacity >= requiredStates) {
+        return CURBLAS_STATUS_SUCCESS;
+    }
+    
+    if (ctx->rngStates) {
+        cudaFree(ctx->rngStates);
+        ctx->rngStates = nullptr;
+        ctx->rngStatesCapacity = 0;
+    }
+    
+    cudaError_t cudaStatus = cudaMalloc(&ctx->rngStates, 
+        requiredStates * sizeof(curandStatePhilox4_32_10_t));
+    if (cudaStatus != cudaSuccess) {
+        return CURBLAS_STATUS_ALLOC_FAILED;
+    }
+    
+    int blockSize = 256;
+    int numBlocks = (requiredStates + blockSize - 1) / blockSize;
+    initRngStates<<<numBlocks, blockSize, 0, ctx->stream>>>(
+        ctx->rngStates, requiredStates, ctx->seed);
+    
+    cudaStatus = cudaGetLastError();
+    if (cudaStatus != cudaSuccess) {
+        cudaFree(ctx->rngStates);
+        ctx->rngStates = nullptr;
+        return CURBLAS_STATUS_EXECUTION_FAILED;
+    }
+    
+    ctx->rngStatesCapacity = requiredStates;
+    return CURBLAS_STATUS_SUCCESS;
+}
+
+curandStatePhilox4_32_10_t* curblasGetRngStates(curblasHandle_t handle) {
+    if (handle == nullptr) {
+        return nullptr;
+    }
+    curblasContext* ctx = static_cast<curblasContext*>(handle);
+    return ctx->rngStates;
 }
 
 /*
@@ -317,12 +288,11 @@ curblasStatus_t curblasSetRandomSeed(curblasHandle_t handle, unsigned long long 
     curblasContext* ctx = static_cast<curblasContext*>(handle);
     ctx->seed = seed;
     
-    // Update custom random number generator seed
-    if (ctx->rng) {
-//        ctx->rng->seed = seed;
-//        ctx->rng->counter = 0;  // Reset counter when seed changes
-        setup_rng_kernel<<<1, 1, 0, ctx->stream>>>(ctx->rng, ctx->seed);
-
+    if (ctx->rngStates && ctx->rngStatesCapacity > 0) {
+        int blockSize = 256;
+        int numBlocks = (ctx->rngStatesCapacity + blockSize - 1) / blockSize;
+        initRngStates<<<numBlocks, blockSize, 0, ctx->stream>>>(
+            ctx->rngStates, ctx->rngStatesCapacity, ctx->seed);
     }
     
     return CURBLAS_STATUS_SUCCESS;
