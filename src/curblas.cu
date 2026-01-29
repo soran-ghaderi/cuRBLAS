@@ -68,18 +68,12 @@ namespace curblas {
             r.z *= scale;
             r.w *= scale;
 
-            sketch[idxStart] = r.x;
-
-            if (idxStart + 1 < totalElements) {
-                sketch[idxStart + 1] = r.y;
-            }
-            
-            if (idxStart + 2 < totalElements) {
-                sketch[idxStart + 2] = r.z;
-            }
-
             if (idxStart + 3 < totalElements) {
-                sketch[idxStart + 3] = r.w;
+                reinterpret_cast<float4*>(sketch)[tIdx] = r;
+            } else {
+                sketch[idxStart] = r.x;
+                if (idxStart + 1 < totalElements) sketch[idxStart + 1] = r.y;
+                if (idxStart + 2 < totalElements) sketch[idxStart + 2] = r.z;
             }
         }
     }
