@@ -1,6 +1,7 @@
 #include "curblas/curblas.h"
 #include "curblas/curblas_types.h"
 #include <cuda_runtime.h>
+#include <cublas_v2.h>
 #include <curand.h>
 #include <curand_kernel.h>
 
@@ -23,10 +24,15 @@ struct curblasContext {
     cudaStream_t stream;
     bool ownsStream;
     
+    cublasHandle_t cublasHandle;
+    
     unsigned long long seed;
     
     curandStatePhilox4_32_10_t* rngStates;
     size_t rngStatesCapacity;
+    
+    void* workspace;
+    size_t workspaceSize;
     
     curblasAccuracy_t accuracy;
     curblasSketchType_t defaultSketchType;
@@ -42,9 +48,12 @@ struct curblasContext {
     curblasContext() : 
         stream(nullptr),
         ownsStream(false),
+        cublasHandle(nullptr),
         seed(1234ULL),
         rngStates(nullptr),
         rngStatesCapacity(0),
+        workspace(nullptr),
+        workspaceSize(0),
         accuracy(CURBLAS_ACCURACY_MEDIUM),
         defaultSketchType(CURBLAS_SKETCH_AUTO),
         mathMode(CURBLAS_DEFAULT_MATH),
@@ -95,6 +104,14 @@ curblasStatus_t curblasCreate(curblasHandle_t* handle) {
         }
         ctx->ownsStream = true;
 
+        cublasStatus_t cublasStatus = cublasCreate(&ctx->cublasHandle);
+        if (cublasStatus != CUBLAS_STATUS_SUCCESS) {
+            cudaStreamDestroy(ctx->stream);
+            delete ctx;
+            return CURBLAS_STATUS_ALLOC_FAILED;
+        }
+        cublasSetStream(ctx->cublasHandle, ctx->stream);
+
         *handle = ctx;
         return CURBLAS_STATUS_SUCCESS;
         
@@ -112,8 +129,16 @@ curblasStatus_t curblasDestroy(curblasHandle_t handle) {
     
     curblasContext* ctx = static_cast<curblasContext*>(handle);
     
+    if (ctx->workspace) {
+        cudaFree(ctx->workspace);
+    }
+    
     if (ctx->rngStates) {
         cudaFree(ctx->rngStates);
+    }
+    
+    if (ctx->cublasHandle) {
+        cublasDestroy(ctx->cublasHandle);
     }
     
     if (ctx->stream && ctx->ownsStream) {
@@ -155,6 +180,10 @@ curblasStatus_t curblasSetStream(curblasHandle_t handle, cudaStream_t streamId) 
     
     ctx->stream = streamId;
     ctx->ownsStream = false;
+    
+    if (ctx->cublasHandle) {
+        cublasSetStream(ctx->cublasHandle, streamId);
+    }
     
     return CURBLAS_STATUS_SUCCESS;
 }
@@ -231,6 +260,52 @@ curandStatePhilox4_32_10_t* curblasGetRngStates(curblasHandle_t handle) {
     }
     curblasContext* ctx = static_cast<curblasContext*>(handle);
     return ctx->rngStates;
+}
+
+cublasHandle_t curblasGetCublasHandle(curblasHandle_t handle) {
+    if (handle == nullptr) {
+        return nullptr;
+    }
+    curblasContext* ctx = static_cast<curblasContext*>(handle);
+    return ctx->cublasHandle;
+}
+
+curblasStatus_t curblasEnsureWorkspace(curblasHandle_t handle, size_t requiredSize) {
+    if (handle == nullptr) {
+        return CURBLAS_STATUS_INVALID_VALUE;
+    }
+    
+    curblasContext* ctx = static_cast<curblasContext*>(handle);
+    
+    if (ctx->deviceId == -1) {
+        return CURBLAS_STATUS_NOT_INITIALIZED;
+    }
+    
+    if (ctx->workspaceSize >= requiredSize) {
+        return CURBLAS_STATUS_SUCCESS;
+    }
+    
+    if (ctx->workspace) {
+        cudaFree(ctx->workspace);
+        ctx->workspace = nullptr;
+        ctx->workspaceSize = 0;
+    }
+    
+    cudaError_t cudaStatus = cudaMalloc(&ctx->workspace, requiredSize);
+    if (cudaStatus != cudaSuccess) {
+        return CURBLAS_STATUS_ALLOC_FAILED;
+    }
+    
+    ctx->workspaceSize = requiredSize;
+    return CURBLAS_STATUS_SUCCESS;
+}
+
+void* curblasGetWorkspace(curblasHandle_t handle) {
+    if (handle == nullptr) {
+        return nullptr;
+    }
+    curblasContext* ctx = static_cast<curblasContext*>(handle);
+    return ctx->workspace;
 }
 
 /*

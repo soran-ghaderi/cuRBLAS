@@ -105,6 +105,14 @@ curblasStatus_t curblasSetMathMode(curblasHandle_t handle, curblasMath_t mode);
  */
 curblasStatus_t curblasEnsureRngCapacity(curblasHandle_t handle, size_t requiredStates);
 
+/**
+ * @brief Ensure workspace has sufficient capacity
+ * @param handle curblas handle
+ * @param requiredSize Required workspace size in bytes
+ * @return curblas status code
+ */
+curblasStatus_t curblasEnsureWorkspace(curblasHandle_t handle, size_t requiredSize);
+
 /*
  * ============================================================================
  * curblas Level 3: Randomized Matrix-Matrix Operations
@@ -299,7 +307,10 @@ curblasStatus_t curblasGetOptimalSketchSize(
 
 #ifdef __CUDACC__
 #include <curand_kernel.h>
+#include <cublas_v2.h>
 curandStatePhilox4_32_10_t* curblasGetRngStates(curblasHandle_t handle);
+cublasHandle_t curblasGetCublasHandle(curblasHandle_t handle);
+void* curblasGetWorkspace(curblasHandle_t handle);
 #endif
 
 #endif // CURBLAS_H 
