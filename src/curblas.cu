@@ -10,13 +10,20 @@
 
 namespace curblas {
 
-    __global__ void reduceSum(const float *input, float *output, int n) {
+    __global__ __launch_bounds__(256, 4)
+    void reduceSum(const float *input, float *output, int n) {
         extern __shared__ float sharedData[];
 
         int tid = threadIdx.x;
+        int gridStride = blockDim.x * gridDim.x;
         int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-        sharedData[tid] = (idx < n) ? input[idx] : 0.0f;
+        float localSum = 0.0f;
+        for (int i = idx; i < n; i += gridStride) {
+            localSum += input[i];
+        }
+        sharedData[tid] = localSum;
+
         __syncthreads();
 
         for (int s = blockDim.x / 2; s > 0; s >>= 1) {
@@ -52,30 +59,38 @@ namespace curblas {
         }
     }
 
-    __global__ void gaussianSketchOperator(
+    __global__ __launch_bounds__(256, 4)
+    void gaussianSketchOperator(
             curandStatePhilox4_32_10_t* __restrict__ states,
             float* __restrict__ sketch, 
             int rows, int cols, float scale) {
         int tIdx = blockIdx.x * blockDim.x + threadIdx.x;
+        int gridStride = blockDim.x * gridDim.x;
         int totalElements = rows * cols;
-        int idxStart = tIdx * 4;
+        int numFloat4 = totalElements >> 2;
+        int remainder = totalElements & 3;
+        float4* __restrict__ sketch4 = reinterpret_cast<float4*>(sketch);
 
-        if (idxStart < totalElements) {
-            float4 r = curand_normal4(&states[tIdx]);
+        curandStatePhilox4_32_10_t localState = states[tIdx];
 
+        for (int i = tIdx; i < numFloat4; i += gridStride) {
+            float4 r = curand_normal4(&localState);
             r.x *= scale;
             r.y *= scale;
             r.z *= scale;
             r.w *= scale;
-
-            if (idxStart + 3 < totalElements) {
-                reinterpret_cast<float4*>(sketch)[tIdx] = r;
-            } else {
-                sketch[idxStart] = r.x;
-                if (idxStart + 1 < totalElements) sketch[idxStart + 1] = r.y;
-                if (idxStart + 2 < totalElements) sketch[idxStart + 2] = r.z;
-            }
+            sketch4[i] = r;
         }
+
+        if (tIdx == 0 && remainder > 0) {
+            int baseIdx = numFloat4 << 2;
+            float4 r = curand_normal4(&localState);
+            sketch[baseIdx] = r.x * scale;
+            if (remainder > 1) sketch[baseIdx + 1] = r.y * scale;
+            if (remainder > 2) sketch[baseIdx + 2] = r.z * scale;
+        }
+
+        states[tIdx] = localState;
     }
 
 }

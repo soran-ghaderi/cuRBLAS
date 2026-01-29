@@ -13,9 +13,10 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-__global__ void initRngStates(curandStatePhilox4_32_10_t* states, size_t numStates, unsigned long long seed) {
-    size_t id = blockIdx.x * blockDim.x + threadIdx.x;
-    if (id < numStates) {
+__global__ __launch_bounds__(256, 4)
+void initRngStates(curandStatePhilox4_32_10_t* states, size_t numStates, unsigned long long seed) {
+    size_t gridStride = blockDim.x * gridDim.x;
+    for (size_t id = blockIdx.x * blockDim.x + threadIdx.x; id < numStates; id += gridStride) {
         curand_init(seed, id, 0, &states[id]);
     }
 }
