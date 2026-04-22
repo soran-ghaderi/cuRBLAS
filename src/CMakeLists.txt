@@ -5,6 +5,7 @@ if(CUDA_FOUND)
     add_library(cuRBLAS
         curblas.cu
         context.cu
+        rgemm.cu
     )
 
     # Set CUDA properties
@@ -16,6 +17,8 @@ if(CUDA_FOUND)
     # Link CUDA libraries
     target_link_libraries(cuRBLAS PUBLIC
         CUDA::cudart
+        CUDA::cublas
+        CUDA::curand
     )
 
     # Define CUDA availability for code

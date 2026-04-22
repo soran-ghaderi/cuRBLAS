@@ -44,8 +44,8 @@ Traditional linear algebra operations can be computationally expensive for large
 
 ### Planned Features (Header Declarations Only)
 
-🚧 **Level 3 Operations** (API designed, implementation pending)
-- Randomized General Matrix Multiply (RGEMM)
+🚧 **Level 3 Operations** (API designed, implementation in progress ⌛)
+- Randomized General Matrix Multiply (RGEMM) ⌛
 - Randomized Singular Value Decomposition (RSVD)  
 - Randomized QR Decomposition (RQR)
 
@@ -54,11 +54,11 @@ Traditional linear algebra operations can be computationally expensive for large
 - Optimal sketch size recommendations
 - Logging callback system
 
-### Sketching Methods (Types Defined)
+### 🚧 Sketching Methods (Types Defined, Implementations in Progress ⌛)
 
 The library defines support for multiple randomized sketching techniques:
 
-- **Gaussian**: Standard Gaussian random projections
+- ✅ **Gaussian**: Standard Gaussian random projections
 - **Rademacher**: Binary random projections (+1/-1)
 - **SRHT**: Subsampled Randomized Hadamard Transform
 - **CountSketch**: Hash-based sketching for sparse data
@@ -127,7 +127,61 @@ Or install directly from PyPI (when available):
 pip install curblas
 ```
 
-## Usage Example
+## Usage Examples
+
+### Generating a Gaussian Sketch Matrix (Available Now)
+While the high-level wrappers are under development, you can use the core kernels directly. The following example shows how to use the gaussianSketchOperator kernel to create a large random matrix on the GPU.
+
+```c++
+#include "curblas/curblas.cuh"
+#include <cuda_runtime.h>
+#include <iostream>
+#include <vector>
+
+int main() {
+    int rows = 4000;
+    int cols = 5000;
+    int totalElements = rows * cols;
+
+    std::cout << "Generating a " << rows << " x " << cols 
+              << " gaussian sketch matrix on the GPU." << std::endl;
+
+    // allocate device (GPU) memory
+    float* d_sketch;
+    cudaMalloc((void**)&d_sketch, totalElements * sizeof(float));
+
+    long long seed = 12345L;
+    float scale = 1.0f; 
+    int blockSize = 256;
+    int numBlocks = (totalElements + blockSize - 1) / blockSize;
+
+    // launch the kernel
+    curblas::gaussianSketchOperator<<<numBlocks, blockSize>>>(d_sketch, rows, cols, seed, scale);
+    
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess) {
+        std::cerr << "Kernel launch failed: " << cudaGetErrorString(err) << std::endl;
+        cudaFree(d_sketch);
+        return -1;
+    }
+    cudaDeviceSynchronize();
+
+    std::cout << "Successfully generated matrix on the device." << std::endl;
+    
+    // if you wan to print the results, you can copy the data back to the host (do this if your matrix is small only)
+    // std::vector<float> h_sketch(totalElements);
+    // cudaMemcpy(h_sketch.data(), d_sketch, totalElements * sizeof(float), cudaMemcpyDeviceToHost);
+
+    cudaFree(d_sketch);
+
+    return 0;
+}
+
+```
+
+### High-Level API
+
+The following example shows the intended usage pattern.
 
 ```c
 #include <cuRBLAS/curblas.h>

@@ -1,6 +1,13 @@
 # The scikit-build build directory
 _skbuild
 
+# Version bumping config
+.bumpversion.cfg
+
+# Docker
+.dockerignore
+Dockerfile.local
+
 # Prerequisites
 *.d
 
@@ -57,6 +64,12 @@ build.ninja
 CMakeDoxyfile.in
 CMakeDoxygenDefaults.cmake
 
+# Build output executables
+app/cuRBLAS_app
+.github/copilot-instructions.md
+# Doxygen in docs/
+docs/Doxyfile
+
 # IDE files
 .vscode/
 .vs/
@@ -64,26 +77,8 @@ CMakeDoxygenDefaults.cmake
 *.swo
 *~
 
-# CLion/IntelliJ files (keep .idea in case it has project-specific settings)
-# .idea/
-# But ignore user-specific IDE files
-.idea/workspace.xml
-.idea/tasks.xml
-.idea/dictionaries/
-.idea/vcs.xml
-.idea/jsLibraryMappings.xml
-.idea/datasources.xml
-.idea/dataSources.ids
-.idea/sqlDataSources.xml
-.idea/dynamic.xml
-.idea/uiDesigner.xml
-.idea/gradle.xml
-.idea/libraries/
-.idea/mongoSettings.xml
-.idea/shelf/
-.idea/usage.statistics.xml
-.idea/navEditor.xml
-.idea/assetWizardSettings.xml
+# CLion/IntelliJ files
+.idea/
 
 # Temporary files
 *.tmp
@@ -241,3 +236,12 @@ cython_debug/
 doc/html/
 doc/xml/
 docs/api/doxygen/
+
+DOCUMENTATION.md
+tests/tests
+scripts/test-cuda.sh
+scripts/build-docs.sh
+cuRBLAS_roadmap.md
+.github/README.md
+QUICK_START.md
+scripts/README.md
