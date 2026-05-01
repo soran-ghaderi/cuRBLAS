@@ -34,7 +34,7 @@ jobs:
 
       - name: Cache Catch2 (Linux)
         if: runner.os == 'Linux'
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         id: cache-catch2-linux
         with:
           path: |
@@ -46,7 +46,7 @@ jobs:
 
       - name: Cache Catch2 (Windows)
         if: runner.os == 'Windows'
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         id: cache-catch2-windows
         with:
           path: |
@@ -656,7 +656,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Cache Catch2 (Coverage)
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         id: cache-catch2-coverage
         with:
           path: |
