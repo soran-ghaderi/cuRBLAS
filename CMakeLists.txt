@@ -12,9 +12,25 @@ if(CMAKE_CUDA_COMPILER)
     set(CUDA_FOUND TRUE)
     message(STATUS "CUDA found and enabled")
 
-    # Set CUDA architectures - this fixes the CMAKE_CUDA_ARCHITECTURES error
-    # Supporting common GPU architectures: Pascal, Volta, Turing, Ampere, Ada Lovelace
-    set(CMAKE_CUDA_ARCHITECTURES "60;61;70;75;80;86;89;90" CACHE STRING "CUDA architectures")
+    # Set CUDA architectures. Each tier is gated on the toolkit version that can actually
+    # compile it: too new an arch fails with "unsupported gpu architecture", too old an arch
+    # fails once the toolkit drops it. Override with -DCMAKE_CUDA_ARCHITECTURES=<list>.
+    set(CURBLAS_CUDA_ARCHS "")
+    if(CMAKE_CUDA_COMPILER_VERSION VERSION_LESS 13.0)
+        list(APPEND CURBLAS_CUDA_ARCHS 60 61 70)      # Pascal, Volta: removed in CUDA 13
+    endif()
+    list(APPEND CURBLAS_CUDA_ARCHS 75 80 86)          # Turing, Ampere
+    if(CMAKE_CUDA_COMPILER_VERSION VERSION_GREATER_EQUAL 11.8)
+        list(APPEND CURBLAS_CUDA_ARCHS 89)            # Ada Lovelace
+    endif()
+    if(CMAKE_CUDA_COMPILER_VERSION VERSION_GREATER_EQUAL 12.0)
+        list(APPEND CURBLAS_CUDA_ARCHS 90)            # Hopper
+    endif()
+    if(CMAKE_CUDA_COMPILER_VERSION VERSION_GREATER_EQUAL 12.8)
+        list(APPEND CURBLAS_CUDA_ARCHS 100 120)       # Blackwell (datacenter, consumer)
+    endif()
+    set(CMAKE_CUDA_ARCHITECTURES "${CURBLAS_CUDA_ARCHS}" CACHE STRING "CUDA architectures")
+    message(STATUS "CUDA ${CMAKE_CUDA_COMPILER_VERSION}, targeting architectures: ${CMAKE_CUDA_ARCHITECTURES}")
 
     # Define CUDA standard
     set(CMAKE_CUDA_STANDARD 17)
