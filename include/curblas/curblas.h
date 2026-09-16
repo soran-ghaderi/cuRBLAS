@@ -8,11 +8,7 @@
 extern "C" {
 #endif
 
-/*
- * ============================================================================
- * curblas Context Management
- * ============================================================================
- */
+/* context management */
 
 /**
  * @brief Create a curblas context handle
@@ -51,11 +47,7 @@ curblasStatus_t curblasSetStream(curblasHandle_t handle, cudaStream_t streamId);
  */
 curblasStatus_t curblasGetStream(curblasHandle_t handle, cudaStream_t* streamId);
 
-/*
- * ============================================================================
- * curblas Configuration and Control
- * ============================================================================
- */
+/* configuration and control */
 
 /**
  * @brief Set global accuracy level for randomized operations
@@ -113,11 +105,7 @@ curblasStatus_t curblasEnsureRngCapacity(curblasHandle_t handle, size_t required
  */
 curblasStatus_t curblasEnsureWorkspace(curblasHandle_t handle, size_t requiredSize);
 
-/*
- * ============================================================================
- * curblas Level 3: Randomized Matrix-Matrix Operations
- * ============================================================================
- */
+/* level 3: randomized matrix-matrix operations */
 
 /**
  * @brief Randomized single precision general matrix multiply
@@ -171,11 +159,7 @@ curblasStatus_t curblasDrgemm(
     int sketchSize
 );
 
-/*
- * ============================================================================
- * curblas Randomized Decompositions
- * ============================================================================
- */
+/* randomized decompositions */
 
 /**
  * @brief Randomized Singular Value Decomposition (single precision)
@@ -243,11 +227,7 @@ curblasStatus_t curblasRqr(
     float* workspace
 );
 
-/*
- * ============================================================================
- * curblas Utility Functions
- * ============================================================================
- */
+/* utility functions */
 
 /**
  * @brief Get the string description of a curblas status code

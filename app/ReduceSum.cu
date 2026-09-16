@@ -6,7 +6,6 @@
 
 
 int main() {
-    // Verify device supports cooperative launch
     int deviceId = 0;
     cudaGetDevice(&deviceId);
     int supportsCoopLaunch = 0;
@@ -16,7 +15,6 @@ int main() {
         return 1;
     }
 
-    // Example usage of the reduceSum kernel
     int N = 1024;
     float h_input[N];
 

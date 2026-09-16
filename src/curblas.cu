@@ -2,11 +2,7 @@
 
 #include <cuda_runtime.h>
 #include <cooperative_groups.h>
-#include <cublas_v2.h>
-#include <curand.h>
 #include <curand_kernel.h>
-#include <cmath>
-#include <algorithm>
 
 namespace curblas {
 
