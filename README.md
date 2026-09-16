@@ -1,338 +1,106 @@
-# cuRBLAS: CUDA Randomized Basic Linear Algebra Subprograms
+# cuRBLAS
+
+Randomized linear algebra on the GPU: sketching primitives with RandBLAS semantics, written in the cuBLAS style.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/soran-ghaderi/cuRBLAS/ci.yml?branch=main)](https://github.com/soran-ghaderi/cuRBLAS/actions/workflows/ci.yml)
-[![PyPI Release](https://img.shields.io/pypi/v/cuRBLAS.svg)](https://pypi.org/project/cuRBLAS)
-[![codecov](https://codecov.io/gh/soran-ghaderi/cuRBLAS/branch/main/graph/badge.svg)](https://codecov.io/gh/soran-ghaderi/cuRBLAS)
 
-## Overview
+> **Early alpha.** The header declares the whole planned API, but most of it is not written yet.
+> See [what works](#what-works) before you depend on anything.
 
-**cuRBLAS** is a high-performance GPU-accelerated library for randomized linear algebra operations, designed as a complement to NVIDIA's cuBLAS. It leverages state-of-the-art randomized algorithms to provide significant computational speedups for large-scale linear algebra problems by trading deterministic accuracy for performance through probabilistic methods.
+Randomized methods shrink a large matrix problem by multiplying it with a small random matrix
+(a *sketch*). You give up a little accuracy and save a lot of time and memory. RandBLAS does
+this on the CPU. cuSOLVER ships one randomized routine and no sketching primitives at all, so
+most GPU code in this area is hand-rolled. cuRBLAS is meant to fill that gap.
 
-### Why Randomized Linear Algebra?
+## What works
 
-Traditional linear algebra operations can be computationally expensive for large matrices. Randomized algorithms offer:
+- handle and stream: `curblasCreate`, `curblasDestroy`, `curblasSetStream`, `curblasGetStream`, `curblasGetVersion`
+- settings kept on the handle: accuracy, sketch type, seed, math mode (no kernel reads them yet)
+- workspace and RNG state allocation
+- two device kernels: `gaussianSketchOperator` and `reduceSum`
 
-- **Performance**: We will update this section when the results are ready
-- **Memory Efficiency**: Reduced memory footprint through sketching techniques
-- **Scalability**: Better scaling properties for massive datasets
-- **Controllable Accuracy**: User-defined precision guarantees (typically 95-99.9% accuracy)
+All of the above has tests.
 
-### Key Applications
+## What does not
 
-- **Machine Learning**: Fast approximate matrix operations for neural networks, dimensionality reduction, kernel methods, graph algorithms
-- **Scientific Computing**: Large-scale simulations, PDE/ODE/SDE solving, quantum chemistry calculations
-- **Computer Graphics**: Real-time rendering, physics simulations
+These are declared in the header and do nothing if you call them:
+`curblasRgemm`, `curblasDrgemm`, `curblasRsvd`, `curblasDrsvd`, `curblasRqr`,
+`curblasGetWorkspaceSize`, `curblasSetLoggerCallback`, `curblasGetOptimalSketchSize`.
 
-## Features
+Only `CURBLAS_SKETCH_GAUSSIAN` has a kernel behind it. Rademacher, SRHT, CountSketch, sparse
+and auto are enum values and nothing more.
 
-### Currently Implemented (v0.1.0)
+No speed numbers either. There is no benchmark harness yet, so this README makes no
+performance claims.
 
-✅ **Core Infrastructure**
-- Context management (`curblasCreate`, `curblasDestroy`)
-- CUDA stream support (`curblasSetStream`, `curblasGetStream`)
-- Configuration management (accuracy levels, sketch types, random seeding)
-- Comprehensive error handling and status reporting
-- Custom random number generation optimized for CUDA devices
-- Version information system
+## Build
 
-✅ **Configuration API**
-- Accuracy levels: High (99.9%), Medium (99%), Low (95%), Custom
-- Sketching method selection: Gaussian, Rademacher, SRHT, CountSketch, Sparse, Auto
-- Math mode configuration (including Tensor Core support)
-- Random seed control for reproducible results
-
-### Planned Features (Header Declarations Only)
-
-🚧 **Level 3 Operations** (API designed, implementation in progress ⌛)
-- Randomized General Matrix Multiply (RGEMM) ⌛
-- Randomized Singular Value Decomposition (RSVD)  
-- Randomized QR Decomposition (RQR)
-
-🚧 **Utility Functions** (API designed, implementation pending)
-- Workspace size calculation
-- Optimal sketch size recommendations
-- Logging callback system
-
-### 🚧 Sketching Methods (Types Defined, Implementations in Progress ⌛)
-
-The library defines support for multiple randomized sketching techniques:
-
-- ✅ **Gaussian**: Standard Gaussian random projections
-- **Rademacher**: Binary random projections (+1/-1)
-- **SRHT**: Subsampled Randomized Hadamard Transform
-- **CountSketch**: Hash-based sketching for sparse data
-- **Sparse**: Sparse random projections
-- **Auto**: Automatic selection based on matrix properties
-
-*Note: Type definitions and enums are complete, but kernel implementations are in development.*
-
-## Prerequisites
-
-Building cuRBLAS requires:
-
-* **C++17-compliant compiler** (GCC 7+, Clang 5+, MSVC 2017+)
-* **CMake** `>= 3.9`
-* **CUDA Toolkit** (version 11.0 or later) - for GPU acceleration
-* **cuBLAS** (included with CUDA Toolkit) - for basic linear algebra operations
-* **Random number generation** - custom implementation for sketching algorithms
-* **Catch2** testing framework (for building tests)
-* **Python** `>= 3.8` (for Python bindings)
-* **Doxygen** (optional, for documentation)
-
-## Installation
-
-### Building from Source
+You need a C++17 compiler, CMake 3.18 or newer, and the CUDA toolkit (cuBLAS and cuRAND come
+with it). Catch2 v3 for the tests, Doxygen for the docs.
 
 ```bash
-# Clone the repo
-git clone https://github.com/soran-ghaderi/cuRBLAS.git
-cd curblas
-
-# Create build directory
-mkdir build && cd build
-
-# Configure build
-cmake -DCMAKE_BUILD_TYPE=Release ..
-
-# Build the library
-cmake --build .
-
-# Install (optional)
-cmake --build . --target install
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
+ctest --test-dir build
 ```
 
-### Build Options
+Handy flags: `-DBUILD_TESTING=OFF`, `-DBUILD_DOCS=OFF`, `-DBUILD_PYTHON=ON` (off by default).
 
-Customize the build with CMake variables:
+GPU architectures are chosen from your toolkit version and printed when you configure. Pin
+them yourself with something like `-DCMAKE_CUDA_ARCHITECTURES=120`.
 
-```bash
-cmake -DBUILD_TESTING=ON \      # Enable test suite (default: ON)
-      -DBUILD_DOCS=ON \         # Enable documentation (default: ON)
-      -DBUILD_PYTHON=ON \       # Enable Python bindings (default: ON)
-      -DCMAKE_BUILD_TYPE=Release ..
-```
+Building does not need a GPU, running the tests does. CI is switched off because there is no
+GPU runner, so run `ctest` yourself before pushing.
 
-### Python Installation
+## Example
 
-Install as a Python package:
+The sketch API is not written yet, so you launch the kernel directly. Full program in
+[app/gaussian_sketch.cu](app/gaussian_sketch.cu).
 
-```bash
-pip install .
-```
-
-Or install directly from PyPI (when available):
-
-```bash
-pip install curblas
-```
-
-## Usage Examples
-
-### Generating a Gaussian Sketch Matrix (Available Now)
-While the high-level wrappers are under development, you can use the core kernels directly. The following example shows how to use the gaussianSketchOperator kernel to create a large random matrix on the GPU.
-
-```c++
-#include "curblas/curblas.cuh"
-#include <cuda_runtime.h>
-#include <iostream>
-#include <vector>
-
-int main() {
-    int rows = 4000;
-    int cols = 5000;
-    int totalElements = rows * cols;
-
-    std::cout << "Generating a " << rows << " x " << cols 
-              << " gaussian sketch matrix on the GPU." << std::endl;
-
-    // allocate device (GPU) memory
-    float* d_sketch;
-    cudaMalloc((void**)&d_sketch, totalElements * sizeof(float));
-
-    long long seed = 12345L;
-    float scale = 1.0f; 
-    int blockSize = 256;
-    int numBlocks = (totalElements + blockSize - 1) / blockSize;
-
-    // launch the kernel
-    curblas::gaussianSketchOperator<<<numBlocks, blockSize>>>(d_sketch, rows, cols, seed, scale);
-    
-    cudaError_t err = cudaGetLastError();
-    if (err != cudaSuccess) {
-        std::cerr << "Kernel launch failed: " << cudaGetErrorString(err) << std::endl;
-        cudaFree(d_sketch);
-        return -1;
-    }
-    cudaDeviceSynchronize();
-
-    std::cout << "Successfully generated matrix on the device." << std::endl;
-    
-    // if you wan to print the results, you can copy the data back to the host (do this if your matrix is small only)
-    // std::vector<float> h_sketch(totalElements);
-    // cudaMemcpy(h_sketch.data(), d_sketch, totalElements * sizeof(float), cudaMemcpyDeviceToHost);
-
-    cudaFree(d_sketch);
-
-    return 0;
-}
-
-```
-
-### High-Level API
-
-The following example shows the intended usage pattern.
-
-```c
-#include <cuRBLAS/curblas.h>
-
-// Create curblas context
+```cpp
 curblasHandle_t handle;
-curblasStatus_t status = curblasCreate(&handle);
-if (status != CURBLAS_STATUS_SUCCESS) {
-    printf("Failed to create curblas handle: %s\n", 
-           curblasGetStatusString(status));
-    return -1;
-}
+curblasCreate(&handle);
 
-// Configure accuracy (99% accuracy)
-curblasSetAccuracy(handle, CURBLAS_ACCURACY_MEDIUM);
+int threads = (rows * cols + 3) / 4;   // one thread writes four floats
+curblasEnsureRngCapacity(handle, threads);
 
-// Set random seed for reproducibility
-curblasSetRandomSeed(handle, 42);
+curblas::gaussianSketchOperator<<<blocks, 256>>>(
+    curblasGetRngStates(handle), d_sketch, rows, cols, 1.0f);
 
-// Set default sketching method
-curblasSetSketchType(handle, CURBLAS_SKETCH_GAUSSIAN);
-
-// Get version information
-int version;
-curblasGetVersion(handle, &version);
-printf("curblas Version: %d\n", version);
-
-// Note: Matrix operations like curblasRgemm are declared 
-// in headers but not yet implemented
-
-// Cleanup
 curblasDestroy(handle);
 ```
 
-## Testing
-
-### C++ Tests
-
-```bash
-cd build
-ctest --verbose
-```
-
-### Python Tests
-
-```bash
-pip install .
-pytest tests/python/
-```
-
-## Documentation
-
-Build the documentation locally:
-
-```bash
-cmake --build . --target doxygen
-```
-
-Then open `doc/html/index.html` in your browser.
-
-## Current Development Status
-
-**What Works:**
-- ✅ Complete context management system
-- ✅ CUDA stream integration
-- ✅ Configuration and parameter setting
-- ✅ Error handling and status reporting
-- ✅ Random number generator setup
-- ✅ Comprehensive test suite for implemented features
-
-**What's Coming Next:**
-- 🚧 Core sketching kernel implementations  
-- 🚧 Randomized matrix multiplication (RGEMM)
-- 🚧 Basic performance benchmarking
-- 🚧 Memory management utilities
+That signature is going to change. The RNG state pool is being replaced by stateless Philox,
+so a sketch will depend on the seed alone and not on how you launched the kernel.
 
 ## Roadmap
 
-### In Progress
-- [x] Core infrastructure and context management
-- [x] API design and type definitions  
-- [x] Basic CUDA integration and testing framework
-- [ ] Core sketching kernel implementations
-- [ ] RGEMM implementation
-- [ ] Memory management utilities
-- [ ] Multiple sketching methods implementation
-- [ ] Randomized SVD (RSVD)
-- [ ] Randomized QR decomposition
-- [ ] Adaptive sketch sizing algorithms
-- [ ] Performance benchmarking framework
-- [ ] Multi-GPU support
-- [ ] Level 1 and Level 2 RBLAS operations
-- [ ] Python (& maybe other langs?!) bindings
-- [ ] Integration with ML frameworks
+1. dense sketching: stateless Philox, Gaussian and Rademacher operators, a GEMM-like `curblasSsketch`
+2. sparse and SRHT sketches
+3. fused generate-and-multiply kernels, and a benchmark harness to prove they are worth it
+4. drivers: RGEMM, RSVD, RQR, sketched least squares
+5. Python bindings
 
-### More
-- [ ] Community contributions
-- [ ] Production optimizations
-- [ ] Comprehensive benchmarking studies
-- [ ] Academic collaborations
+## Python
 
-## Contributing
-
-We welcome contributions! Please see our [contribution guidelines](CONTRIBUTING.md) for details.
-
-### Development Setup
-
-```bash
-git clone https://github.com/soran-ghaderi/cuRBLAS.git
-cd curblas
-pip install -r requirements-dev.txt
-```
+`python/` is a leftover from the project template. It does not work and is off by default.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details.
+MIT, see [LICENSE.md](LICENSE.md).
 
 ## Citation
 
-If you use cuRBLAS in your research, please cite:
-
 ```bibtex
-@software{curblas2024,
+@software{ghaderi2024curblas,
   title={cuRBLAS: CUDA Randomized Basic Linear Algebra Subprograms},
-  author={Ghaderi, Soran and contributors},
+  author={Soran Ghaderi},
   year={2024},
   url={https://github.com/soran-ghaderi/cuRBLAS}
 }
 ```
 
-## Acknowledgments
-
-- Built on NVIDIA's CUDA and cuBLAS libraries
-
 ## Contact
 
-- **Project Lead**: Soran Ghaderi
-- **Issues**: [GitHub Issues](https://github.com/soran-ghaderi/cuRBLAS/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/soran-ghaderi/cuRBLAS/discussions)
-
----
-
-**Status**: 🚧 Active Development - Early Alpha Release
-
-## New Features
-
-- **High-performance sketching algorithms** for randomized linear algebra
-- **Memory-efficient implementations** that minimize GPU memory usage
-- **Streaming support** for out-of-core computations
-- **Comprehensive error handling** with meaningful error messages
-- **Custom random number generation** optimized for CUDA devices
-- **Python bindings** with numpy integration
-- **Extensive testing** with unit tests and benchmarks
-- **Cross-platform support** (Linux, Windows, macOS)
+Questions and bugs: [issues](https://github.com/soran-ghaderi/cuRBLAS/issues) and
+[discussions](https://github.com/soran-ghaderi/cuRBLAS/discussions).

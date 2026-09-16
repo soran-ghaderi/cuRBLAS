@@ -2,17 +2,7 @@
 #include "curblas/curblas.h"
 #include <cuda_runtime.h>
 #include <iostream>
-#include <iomanip>
 #include <vector>
-
-void printMatrix(const std::vector<float>& vec, int rows, int cols) {
-    for (int i = 0; i < rows; ++i) {
-        for (int j = 0; j < cols; ++j) {
-            std::cout << std::fixed << std::setprecision(4) << std::setw(10) << vec[i * cols + j] << " ";
-        }
-        std::cout << std::endl;
-    }
-}
 
 int main() {
     int rows = 4000;

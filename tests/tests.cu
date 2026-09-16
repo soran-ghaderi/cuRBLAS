@@ -63,7 +63,6 @@ TEST_CASE("gaussianSketchOperator kernel tests", "[gaussianSketch]") {
     }
 }
 TEST_CASE("reduceSum kernel tests", "[reduceSum]") {
-    // Verify device supports cooperative launch
     int deviceId = 0;
     cudaGetDevice(&deviceId);
     int supportsCoopLaunch = 0;

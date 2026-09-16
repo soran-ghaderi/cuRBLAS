@@ -1,147 +1,99 @@
 # Welcome to cuRBLAS
 
+!!! warning "Early alpha"
+
+    cuRBLAS is under active development. The public header declares the full target API, but
+    most of it is not implemented yet. This documentation covers only what is implemented;
+    anything absent here is not available.
+
+**cuRBLAS** (CUDA Randomized BLAS) is a GPU-native library for randomized linear algebra:
+RandBLAS sketching semantics expressed in the cuBLAS idiom, with RandLAPACK-style drivers
+planned on top.
+
 <div class="grid cards" markdown>
 
--   :material-rocket-launch:{ .lg .middle } __High Performance__
+-   :material-memory:{ .lg .middle } __GPU-native sketching__
 
     ---
 
-    Optimized CUDA kernels for maximum throughput on NVIDIA GPUs with support for modern GPU architectures.
+    Randomized sketching primitives written as CUDA kernels, with the handle owning the
+    stream, cuBLAS handle and workspace.
 
-    [:octicons-arrow-right-24: Getting Started](getting-started/installation.md)
+    [:octicons-arrow-right-24: Installation](getting-started/installation.md)
 
--   :material-chart-timeline:{ .lg .middle } __Randomized Algorithms__
-
-    ---
-
-    Efficient approximation algorithms for large-scale matrix computations with configurable accuracy levels.
-
-    [:octicons-arrow-right-24: User Guide](guide/overview.md)
-
--   :material-code-braces:{ .lg .middle } __Easy Integration__
+-   :material-dice-multiple:{ .lg .middle } __Reproducible randomness__
 
     ---
 
-    C API compatible with existing BLAS workflows, plus Python bindings for rapid prototyping.
+    Counter-based Philox generation: the same seed and dimensions yield the same sketch,
+    independent of launch geometry.
 
     [:octicons-arrow-right-24: API Reference](api/index.md)
 
--   :material-memory:{ .lg .middle } __Memory Efficient__
-
-    ---
-
-    Reduced memory footprint through sketching techniques, enabling computations on larger matrices.
-
-    [:octicons-arrow-right-24: Examples](examples/basic.md)
-
 </div>
 
-## What is cuRBLAS?
+## What is implemented
 
-**cuRBLAS** (CUDA Randomized BLAS) is a high-performance library for randomized linear algebra operations on NVIDIA GPUs. It provides implementations of randomized algorithms for common matrix operations, offering significant speedups for large-scale computations.
+| Area | Status |
+|---|---|
+| Context and handle lifecycle, version query | ✅ implemented and tested |
+| CUDA stream get/set | ✅ implemented and tested |
+| Configuration: accuracy, sketch type, random seed, math mode | ✅ stored on the handle, not yet consumed by kernels |
+| Status strings | ✅ implemented and tested |
+| Workspace and RNG-state management | ✅ implemented and tested |
+| `curblas::gaussianSketchOperator` device kernel | ✅ implemented, statistically tested |
+| `curblas::reduceSum` device kernel | ✅ implemented and tested |
 
-### Key Features
+Declared in the headers but **not implemented**: `curblasRgemm`/`curblasDrgemm`,
+`curblasRsvd`/`curblasDrsvd`, `curblasRqr`, `curblasGetWorkspaceSize`,
+`curblasSetLoggerCallback`, `curblasGetOptimalSketchSize`. Of the sketch types in
+`curblasSketchType_t`, only `CURBLAS_SKETCH_GAUSSIAN` has a kernel behind it.
 
-- **Matrix Multiplication (RGEMM)**: Randomized general matrix multiplication with configurable accuracy
-- **Singular Value Decomposition (RSVD)**: Fast approximate SVD using randomized methods  
-- **QR Decomposition (RQR)**: Efficient randomized QR factorization
-- **Multiple Precision Support**: Single and double precision floating-point operations
-- **Flexible Sketching**: Various sketching methods (Gaussian, Rademacher, SRHT, CountSketch)
-- **CUDA Integration**: Seamless integration with existing CUDA workflows
+There are no Python bindings; the `python/` directory is a non-functional template leftover.
 
-### Quick Example
+## Quick example
 
-=== "C API"
+Creating a handle and configuring it works today:
 
-    ```c
-    #include <cuRBLAS/curblas.h>
-    
-    // Create cuRBLAS handle
-    curblasHandle_t handle;
-    curblasCreate(&handle);
-    
-    // Set accuracy level
-    curblasSetAccuracy(handle, CURBLAS_ACCURACY_HIGH);
-    
-    // Perform randomized GEMM: C = α·A·B + β·C
-    curblasRgemm(handle, 
-                 CURBLAS_OP_N, CURBLAS_OP_N,
-                 m, n, k,
-                 &alpha, A, lda, 
-                 B, ldb,
-                 &beta, C, ldc,
-                 CURBLAS_SKETCH_GAUSSIAN, 0);
-    
-    // Cleanup
-    curblasDestroy(handle);
-    ```
+```c
+#include "curblas/curblas.h"
 
-=== "Python"
+curblasHandle_t handle;
+if (curblasCreate(&handle) != CURBLAS_STATUS_SUCCESS) {
+    return -1;
+}
 
-    ```python
-    import curblas
-    import numpy as np
-    
-    // Create arrays on GPU
-    A = cp.random.random((1000, 500), dtype=cp.float32)
-    B = cp.random.random((500, 800), dtype=cp.float32)
-    
-    // Randomized matrix multiplication
-    C = curblas.rgemm(A, B, accuracy='high', sketch='gaussian')
-    ```
+curblasSetAccuracy(handle, CURBLAS_ACCURACY_MEDIUM);
+curblasSetSketchType(handle, CURBLAS_SKETCH_GAUSSIAN);
+curblasSetRandomSeed(handle, 42);
 
-### Performance Benefits
+curblasDestroy(handle);
+```
 
-Randomized algorithms can provide significant performance improvements, especially for:
+For a complete program that generates a Gaussian sketch operator on the device, see
+`app/gaussian_sketch.cu` in the repository.
 
-- **Large matrices** where exact computation is prohibitively expensive
-- **Low-rank or approximately low-rank matrices** where high accuracy is maintained
-- **Applications** that can tolerate controlled approximation errors
-- **Memory-constrained environments** where sketching reduces memory usage
+## Why randomized linear algebra
 
-!!! info "When to Use cuRBLAS"
+Randomized algorithms approximate expensive matrix computations by first projecting the
+problem into a much smaller space. They are effective when:
 
-    cuRBLAS is ideal when you need fast matrix computations and can accept small, controlled approximation errors. It's particularly effective for:
-    
-    - Machine learning applications (PCA, matrix factorization)
-    - Scientific computing (solving large linear systems)
-    - Data analysis (dimensionality reduction)
-    - Signal processing (fast transforms)
+- matrices are large enough that exact computation is prohibitive
+- the matrix is low-rank or approximately low-rank, so little information is lost
+- the application tolerates a small, controlled approximation error
+- memory, not arithmetic, is the binding constraint
 
-## Getting Started
+Performance figures will be published here once a benchmark harness measures them against
+naive composition (cuRAND generation followed by a cuBLAS GEMM). Until then cuRBLAS makes no
+speedup claims.
 
-1. **[Install cuRBLAS](getting-started/installation.md)** - Download and install the library
-2. **[Quick Start Guide](getting-started/quick-start.md)** - Basic usage examples
-3. **[API Reference](api/index.md)** - Complete function documentation
-4. **[Examples](examples/basic.md)** - Real-world usage scenarios
+## Getting started
 
-## Community & Support
+1. **[Install cuRBLAS](getting-started/installation.md)**
+2. **[API Reference](api/index.md)**
 
-- **GitHub Repository**: [cuRBLAS/cuRBLAS](https://github.com/cuRBLAS/cuRBLAS)
-- **Issue Tracker**: Report bugs and request features
-- **Discussions**: Ask questions and share experiences
-- **Contributing**: Help improve cuRBLAS
+## Community
 
----
-
-<div class="grid" markdown>
-
-<div markdown>
-### Latest Release
-
-**Version 0.0.1** - Development
-
-Initial development version with core randomized BLAS operations.
-
-[Download](https://github.com/cuRBLAS/cuRBLAS/releases){ .md-button .md-button--primary }
-</div>
-
-<div markdown>
-### Documentation
-
-Complete API reference and user guides available.
-
-[Browse Docs](api/index.md){ .md-button }
-</div>
-
-</div> 
+- **GitHub repository**: [soran-ghaderi/cuRBLAS](https://github.com/soran-ghaderi/cuRBLAS)
+- **Issue tracker**: [report bugs and request features](https://github.com/soran-ghaderi/cuRBLAS/issues)
+- **Discussions**: [ask questions](https://github.com/soran-ghaderi/cuRBLAS/discussions)

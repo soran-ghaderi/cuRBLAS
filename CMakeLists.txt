@@ -1,26 +1,47 @@
 cmake_minimum_required(VERSION 3.18)
 
-# Set a name and a version number for your project:
-# Start with just CXX, add CUDA if available
 project(cuRBLAS VERSION 0.0.1 LANGUAGES CXX)
 
-# Check if CUDA is available and enable it if found
 include(CheckLanguage)
 check_language(CUDA)
 if(CMAKE_CUDA_COMPILER)
+    # has to be answered before enable_language(CUDA) caches a default of its own
+    if(NOT DEFINED CURBLAS_ARCHS_AUTO)
+        if(DEFINED CMAKE_CUDA_ARCHITECTURES)
+            set(CURBLAS_ARCHS_AUTO OFF CACHE INTERNAL "architectures came from the command line")
+        else()
+            set(CURBLAS_ARCHS_AUTO ON CACHE INTERNAL "architectures are chosen by cuRBLAS")
+        endif()
+    endif()
+
     enable_language(CUDA)
     set(CUDA_FOUND TRUE)
-    message(STATUS "CUDA found and enabled")
 
-    # Set CUDA architectures - this fixes the CMAKE_CUDA_ARCHITECTURES error
-    # Supporting common GPU architectures: Pascal, Volta, Turing, Ampere, Ada Lovelace
-    set(CMAKE_CUDA_ARCHITECTURES "60;61;70;75;80;86;89;90" CACHE STRING "CUDA architectures")
+    # gate each tier on the toolkit that can build it, else nvcc targets only its own
+    # default arch and the binary won't launch on a newer gpu
+    if(CURBLAS_ARCHS_AUTO)
+        set(CURBLAS_CUDA_ARCHS "")
+        if(CMAKE_CUDA_COMPILER_VERSION VERSION_LESS 13.0)
+            list(APPEND CURBLAS_CUDA_ARCHS 60 61 70)    # pascal, volta: dropped in cuda 13
+        endif()
+        list(APPEND CURBLAS_CUDA_ARCHS 75 80 86)        # turing, ampere
+        if(CMAKE_CUDA_COMPILER_VERSION VERSION_GREATER_EQUAL 11.8)
+            list(APPEND CURBLAS_CUDA_ARCHS 89)          # ada
+        endif()
+        if(CMAKE_CUDA_COMPILER_VERSION VERSION_GREATER_EQUAL 12.0)
+            list(APPEND CURBLAS_CUDA_ARCHS 90)          # hopper
+        endif()
+        if(CMAKE_CUDA_COMPILER_VERSION VERSION_GREATER_EQUAL 12.8)
+            list(APPEND CURBLAS_CUDA_ARCHS 100 120)     # blackwell
+        endif()
+        # force, a plain set() loses to the default enable_language already cached
+        # no "-virtual" entry, nvlink strips the ptx back out of the linked target
+        set(CMAKE_CUDA_ARCHITECTURES "${CURBLAS_CUDA_ARCHS}" CACHE STRING "CUDA architectures" FORCE)
+    endif()
+    message(STATUS "CUDA ${CMAKE_CUDA_COMPILER_VERSION}, targeting architectures: ${CMAKE_CUDA_ARCHITECTURES}")
 
-    # Define CUDA standard
     set(CMAKE_CUDA_STANDARD 17)
     set(CMAKE_CUDA_STANDARD_REQUIRED ON)
-
-    # CUDA specific settings
     set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
     set(CMAKE_CUDA_RESOLVE_DEVICE_SYMBOLS ON)
 else()
@@ -28,64 +49,37 @@ else()
     message(WARNING "CUDA not found - building CPU-only version")
 endif()
 
-# Set CMake policies for this project
-
-# We allow <Package>_ROOT (env) variables for locating dependencies
 cmake_policy(SET CMP0074 NEW)
-
-# Initialize some default paths
 include(GNUInstallDirs)
 
-# Define the minimum C++ standard that is required
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-# Windows-specific settings to prevent runtime library mismatches
+# msvc won't link if runtime libs or iterator debug levels disagree across targets
 if(WIN32 AND MSVC)
-    # Ensure consistent runtime library settings across all targets
-    # Use /MDd for Debug builds and /MD for Release builds
-    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MDd")
-    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MD")
-    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} /MD")
-    set(CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL} /MD")
-
-    # Ensure consistent iterator debug levels
-    # Use level 2 for Debug builds and level 0 for Release builds
-    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /D_ITERATOR_DEBUG_LEVEL=2")
-    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /D_ITERATOR_DEBUG_LEVEL=0")
-    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} /D_ITERATOR_DEBUG_LEVEL=0")
-    set(CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL} /D_ITERATOR_DEBUG_LEVEL=0")
-
-    message(STATUS "Windows MSVC runtime library flags configured for consistent linking")
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MDd /D_ITERATOR_DEBUG_LEVEL=2")
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MD /D_ITERATOR_DEBUG_LEVEL=0")
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} /MD /D_ITERATOR_DEBUG_LEVEL=0")
+    set(CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL} /MD /D_ITERATOR_DEBUG_LEVEL=0")
 endif()
 
-# Compilation options
 option(BUILD_PYTHON "Enable building of Python bindings" OFF)
 option(BUILD_DOCS "Enable building of documentation" ON)
 
-# Find external dependencies
 if(CUDA_FOUND)
     find_package(CUDAToolkit REQUIRED)
 endif()
 find_package(Threads REQUIRED)
 
-# compile the library
 add_subdirectory(src)
-
-
-# compile the application
 add_subdirectory(app)
 
-# compile the tests
 include(CTest)
 if(BUILD_TESTING)
   find_package(Catch2 3 REQUIRED)
 
-  # Try to include Catch2 discovery functions if available
   if(TARGET Catch2::Catch2WithMain)
-    # Look for the Catch2 CMake module in common locations
     find_file(CATCH2_CMAKE_MODULE
       NAMES Catch2.cmake
       PATHS
@@ -107,24 +101,18 @@ if(BUILD_TESTING)
 endif()
 
 if(BUILD_DOCS)
-  # Add the documentation
   add_subdirectory(docs)
 endif()
+
 if(BUILD_PYTHON)
-  # Add Python bindings
   find_package(pybind11 REQUIRED)
-  # Compile the Pybind11 module
   pybind11_add_module(_cuRBLAS python/curblas/_curblas.cpp)
   target_link_libraries(_cuRBLAS PUBLIC cuRBLAS)
-
-  # Install the Python module shared library
   install(TARGETS _cuRBLAS DESTINATION .)
 endif()
 
-# Add an alias target for use if this project is included as a subproject in another project
 add_library(cuRBLAS::cuRBLAS ALIAS cuRBLAS)
 
-# Install targets and configuration
 install(
   TARGETS cuRBLAS
   EXPORT cuRBLAS-targets
@@ -158,17 +146,5 @@ install(
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
-#include_directories(${CUDA_INCLUDE_DIRS})
-#target_include_directories(curblas
-#        PUBLIC
-#        ${CMAKE_CURRENT_SOURCE_DIR}/include
-#        ${CUDA_INCLUDE_DIRS}
-#)
-#target_link_libraries(curblas
-#        PUBLIC
-#        ${CUDA_LIBRARIES}
-#)
-#include_directories(/usr/local/cuda/include)
-# This prints a summary of found dependencies
 include(FeatureSummary)
 feature_summary(WHAT ALL)
